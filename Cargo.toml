@@ -7,7 +7,9 @@ edition = "2021"
 argon2 = "0.5.3"
 chrono = "0.4.38"
 diesel = { version = "2", features = ["postgres", "chrono"] }
-rocket = "0.5.1"
+jsonwebtoken = "9.3.0"
+rocket = { version = "0.5.1", features = ["json"] }
+serde = "1.0.204"
 
 [dependencies.rocket_db_pools]
 version = "0.2.0"
