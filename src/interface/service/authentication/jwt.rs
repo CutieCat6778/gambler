@@ -1,4 +1,4 @@
-use crate::error_handler::CustomError;
+use crate::handler::error_handler::CustomError;
 use jsonwebtoken::{decode, errors::ErrorKind, DecodingKey, EncodingKey, Header, Validation};
 use rocket::{
     http::Status,
