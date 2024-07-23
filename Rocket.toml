@@ -1,3 +1,0 @@
-[default.databases.gambler]
-url = "postgresql://gambler_owner:iI7dgPl5MtAv@ep-little-hat-a2qaxjbd.eu-central-1.aws.neon.tech/gambler?sslmode=require"
-timeout = 10
