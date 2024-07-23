@@ -1,15 +1,16 @@
 #[macro_use]
 extern crate rocket;
-#[macro_use]
 extern crate rocket_sync_db_pools;
 
-mod authentication;
 mod database;
+mod handler;
+mod interface;
 mod models;
 mod schema;
 
 #[launch]
 fn rocket() -> _ {
-    let routes = vec![authentication::auth_routes()].concat();
-    rocket::build().mount("/", routes).attach(database::stage())
+    rocket::build()
+        .mount("/", interface::get_routes())
+        .attach(database::stage())
 }
