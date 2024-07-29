@@ -3,6 +3,7 @@ package middleware
 import (
 	"fmt"
 	"gambler/backend/tools"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -14,13 +15,13 @@ type Jwt struct {
 	RefreshToken string `json:"refreshToken"`
 }
 
-func Sign(username string, id uint) (*Jwt, int) {
+func Sign(username string) (*Jwt, int) {
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS512, jwt.RegisteredClaims{
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
 		NotBefore: jwt.NewNumericDate(time.Now()),
 		Issuer:    "Gambler Backend Service",
-		Subject:   string(id),
+		Subject:   username,
 	})
 	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS512, jwt.RegisteredClaims{
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * 7 * time.Hour)),
@@ -28,7 +29,6 @@ func Sign(username string, id uint) (*Jwt, int) {
 		NotBefore: jwt.NewNumericDate(time.Now()),
 		Issuer:    "Gambler Backend Service",
 		Subject:   username,
-		ID:        string(id),
 	})
 	AccessToken, err := accessToken.SignedString(tools.JWT_SECRET)
 	if err != nil {
@@ -52,7 +52,13 @@ func Decode(token string) (jwt.Claims, int) {
 		return nil, tools.JWT_FAILED_TO_DECODE
 	}
 	if !t.Valid {
-		return nil, tools.JWT_INVALID
+		rawExpireIn := t.Claims.(jwt.MapClaims)["exp"]
+		expireIn := time.Now().Unix() - rawExpireIn.(int64)
+		if expireIn > 0 {
+			return nil, tools.JWT_EXPIRED
+		} else {
+			return nil, tools.JWT_INVALID
+		}
 	}
 	return t.Claims.(jwt.Claims), -1
 }
@@ -72,26 +78,25 @@ func JwtGuardHandler(c *fiber.Ctx) error {
 		}
 	}
 
-	var token = ""
 	// Check if the request is authorized
 	// If not, return an error
 	headers := c.GetReqHeaders()
-	tokens := headers["Authorization"]
-	if len(tokens) == 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(tools.GlobalErrorHandlerResp{
+	if len(headers) == 0 {
+		return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
 			Success: false,
-			Message: "Unauthorized, no token provided",
-			Code:    fiber.StatusBadRequest,
+			Message: "Bad Request, no headers",
+			Code:    400,
 		})
 	}
-	if tokens[0] == "" {
-		return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
+	token := headers["Authorization"][0]
+	if !strings.HasPrefix(token, "Bearer ") {
+		return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
 			Success: false,
-			Message: "Unauthorized",
-			Code:    401,
+			Message: "Bad Request, invalid token",
+			Code:    400,
 		})
 	}
-	token = tokens[0]
+	token = strings.TrimPrefix(token, "Bearer ")
 
 	claims, err := Decode(token)
 	if err != -1 {
