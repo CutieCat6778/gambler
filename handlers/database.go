@@ -23,12 +23,12 @@ func NewDB() DBHandler {
 	return DB
 }
 
-func (h DBHandler) CreateUser(user models.User) (*models.User, int) {
+func (h DBHandler) CreateUser(user models.User) int {
 	res := h.DB.Create(&user)
 	if res.Error != nil {
-		return nil, HandleError(res.Error)
+		return HandleError(res.Error)
 	}
-	return &user, -1
+	return -1
 }
 
 func (h DBHandler) UpdateUser(user models.User) (*models.User, int) {

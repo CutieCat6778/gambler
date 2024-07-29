@@ -8,6 +8,7 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 )
 
 func main() {
@@ -27,21 +28,12 @@ func main() {
 		},
 	})
 
-	// app.Use(cors.New())
-	// app.Use(csrf.New())
+	app.Use(cors.New())
 
-	// app.Use(cors.New(cors.Config{
-	// 	AllowOrigins: "http://localhost:3000",
-	// 	AllowHeaders: "Origin, Content-Type, Accept",
-	// }))
-
-	// app.Use(csrf.New(csrf.Config{
-	// 	KeyLookup:      "header:X-Csrf-Token",
-	// 	CookieName:     "csrf_",
-	// 	CookieSameSite: "Lax",
-	// 	Expiration:     1 * time.Hour,
-	// 	KeyGenerator:   utils.UUIDv4,
-	// }))
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "*",
+		AllowHeaders: "Origin, Content-Type, Accept",
+	}))
 
 	_ = handlers.NewDB()
 	_ = handlers.NewValidator()

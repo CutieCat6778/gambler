@@ -8,11 +8,11 @@ import (
 
 type User struct {
 	gorm.Model
-	ID        uint           `json:"id" gorm:"primaryKey;autoIncrement"`
+	Id        uint           `json:"id" gorm:"primaryKey;autoIncrement"`
 	Name      string         `json:"name"`
 	Username  string         `json:"username" gorm:"unique"`
 	Password  []byte         `json:"password"`
-	Email     string         `json:"email"`
+	Email     string         `json:"email" gor:"unique"`
 	Balance   int            `json:"balance"`
 	CreatedAt sql.NullString `json:"created_at" gorm:"<-:create;autoCreateTime"`
 	UpdatedAt sql.NullString `json:"updated_at" gorm:"autoUpdateTime:milli"`
