@@ -8,7 +8,7 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/log"
 )
 
 func main() {
@@ -28,15 +28,7 @@ func main() {
 		},
 	})
 
-	app.Use(cors.New())
-
-	app.Use(cors.New(cors.Config{
-		AllowOrigins: "*",
-		AllowHeaders: "Origin, Content-Type, Accept",
-	}))
-
-	_ = handlers.NewDB()
-	_ = handlers.NewValidator()
+	log.SetLevel(log.LevelInfo)
 
 	userController.InitUserRoute(app)
 	authController.InitAuthRoute(app)
@@ -48,6 +40,10 @@ func main() {
 			Code:    200,
 		})
 	})
+	tools.ConfigureApp(app)
+
+	_ = handlers.NewDB()
+	_ = handlers.NewValidator()
 
 	app.Listen(":3000")
 }

@@ -6,7 +6,9 @@ import (
 	"gambler/backend/handlers"
 	"gambler/backend/middleware"
 	"gambler/backend/tools"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
@@ -23,6 +25,11 @@ type (
 		Password string `json:"password" validate:"required,min=8,ascii,excludes=:"`
 		Email    string `json:"email" validate:"required,email"`
 		Name     string `json:"name" validate:"required,min=3,max=50,ascii"`
+	}
+
+	LoginRes struct {
+		Token *middleware.Jwt `json:"token"`
+		User  *models.User    `json:"user"`
 	}
 )
 
@@ -46,23 +53,68 @@ func Login(c *fiber.Ctx) error {
 		})
 	}
 
-	headers := c.GetReqHeaders()
-	if len(headers) == 0 {
-		return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "Bad Request, no headers",
-			Code:    400,
+	cookieAccessToken := c.Cookies("accesstoken")
+	if cookieAccessToken == "" {
+		user, err := handlers.DB.GetUserByUsername(req.Username)
+		if err != -1 {
+			if err == tools.DB_REC_NOTFOUND {
+				return c.Status(404).JSON(tools.GlobalErrorHandlerResp{
+					Success: false,
+					Message: "User not found",
+					Code:    404,
+				})
+			} else {
+				return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
+					Success: false,
+					Message: "Internal server error",
+					Code:    500,
+				})
+			}
+		}
+		hashedPassword := user.Password
+		valid := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(tools.HASH_SECRET+":"+req.Password))
+		if valid != nil {
+			fmt.Println(valid)
+			return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
+				Success: false,
+				Message: "Unauthorized, invalid password",
+				Code:    401,
+				Body:    strings.Split(valid.Error(), ": ")[1],
+			})
+		}
+		tokens, err := middleware.Sign(user.Username)
+		if err != -1 {
+			if err == tools.JWT_FAILED_TO_SIGN {
+				return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
+					Success: false,
+					Message: "Internal server error, failed to sign token",
+					Code:    500,
+				})
+			} else {
+				return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
+					Success: false,
+					Message: "Internal server error",
+					Code:    500,
+				})
+			}
+		}
+
+		tools.SetCookieAfterAuth(c, tokens.AccessToken, tokens.RefreshToken, user.Username)
+
+		return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
+			Success: true,
+			Message: "Login success",
+			Code:    200,
+			Body: LoginRes{
+				Token: tokens,
+				User:  user,
+			},
 		})
 	}
-	accessToken := headers["Authorization"][0]
-	if !strings.HasPrefix(accessToken, "Bearer ") {
-		return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "Bad Request, invalid token",
-			Code:    400,
-		})
-	}
-	accessToken = strings.TrimPrefix(accessToken, "Bearer ")
+	return handleLoginJWT(cookieAccessToken, c)
+}
+
+func handleLoginJWT(accessToken string, c *fiber.Ctx) error {
 	claims, err := middleware.Decode(accessToken)
 	if err != -1 {
 		if err == tools.JWT_FAILED_TO_DECODE {
@@ -116,6 +168,15 @@ func Login(c *fiber.Ctx) error {
 		}
 	}
 
+	c.Cookie(&fiber.Cookie{
+		Name:     "lastlogin",
+		Value:    strconv.FormatInt(time.Now().Unix(), 10),
+		Path:     "/",
+		HTTPOnly: true,
+		Secure:   true,
+		SameSite: fiber.CookieSameSiteLaxMode,
+	})
+
 	return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
 		Success: true,
 		Message: "Login success",
@@ -158,7 +219,7 @@ func Register(c *fiber.Ctx) error {
 
 	user := models.User{
 		Username: req.Username,
-		Password: hashedPasssword,
+		Password: string(hashedPasssword),
 		Email:    req.Email,
 		Name:     req.Name,
 	}
@@ -196,6 +257,8 @@ func Register(c *fiber.Ctx) error {
 			})
 		}
 	}
+
+	tools.SetCookieAfterAuth(c, tokens.AccessToken, tokens.RefreshToken, user.Username)
 
 	return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
 		Success: true,

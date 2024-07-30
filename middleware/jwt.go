@@ -1,9 +1,8 @@
 package middleware
 
 import (
-	"fmt"
 	"gambler/backend/tools"
-	"strings"
+	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -64,40 +63,16 @@ func Decode(token string) (jwt.Claims, int) {
 }
 
 func JwtGuardHandler(c *fiber.Ctx) error {
-	// Check if the request context is authorized
-	// If not, return an error
-	// If it is, continue to the next handler
-	rawIsAuthorized := c.Locals("isAuthorized")
-	rawExpireIn := c.Locals("expireIn")
-	if rawIsAuthorized != nil && rawExpireIn != nil {
-		isAuthorized := rawIsAuthorized.(bool)
-		expireIn := time.Now().Unix() - rawExpireIn.(int64)
-		fmt.Println(isAuthorized, expireIn)
-		if isAuthorized && expireIn < 0 {
-			return c.Next()
-		}
-	}
-
 	// Check if the request is authorized
 	// If not, return an error
-	headers := c.GetReqHeaders()
-	if len(headers) == 0 {
-		return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
+	token := c.Cookies("accesstoken")
+	if token == "" {
+		return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
 			Success: false,
-			Message: "Bad Request, no headers",
-			Code:    400,
+			Message: "Unauthorized, no authorization protocol used",
+			Code:    401,
 		})
 	}
-	token := headers["Authorization"][0]
-	if !strings.HasPrefix(token, "Bearer ") {
-		return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "Bad Request, invalid token",
-			Code:    400,
-		})
-	}
-	token = strings.TrimPrefix(token, "Bearer ")
-
 	claims, err := Decode(token)
 	if err != -1 {
 		if err == tools.JWT_FAILED_TO_DECODE {
@@ -112,10 +87,22 @@ func JwtGuardHandler(c *fiber.Ctx) error {
 				Message: "Invalid token",
 				Code:    401,
 			})
+		} else if err == tools.JWT_EXPIRED {
+			return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
+				Success: false,
+				Message: "Token expired",
+				Code:    401,
+			})
+		} else {
+			return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
+				Success: false,
+				Message: "Unknown error",
+				Code:    401,
+			})
 		}
 	}
 
-	exp, tErr := claims.GetExpirationTime()
+	usrn, tErr := claims.GetSubject()
 	if tErr != nil {
 		return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
 			Success: false,
@@ -123,9 +110,17 @@ func JwtGuardHandler(c *fiber.Ctx) error {
 			Code:    401,
 		})
 	}
-
-	c.Locals("claims", claims)
+	c.Locals("username", usrn)
 	c.Locals("isAuthorized", true)
-	c.Locals("expireIn", exp.Unix())
+
+	c.Cookie(&fiber.Cookie{
+		Name:     "lastlogin",
+		Value:    strconv.FormatInt(time.Now().Unix(), 10),
+		Path:     "/",
+		HTTPOnly: true,
+		Secure:   true,
+		SameSite: fiber.CookieSameSiteLaxMode,
+	})
+
 	return c.Next()
 }
