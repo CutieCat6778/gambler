@@ -77,6 +77,12 @@ func ConfigureApp(app *fiber.App) {
 	}))
 }
 
+func ClearAllCookies(c *fiber.Ctx) {
+	c.ClearCookie("accesstoken")
+	c.ClearCookie("refreshtoken")
+	c.ClearCookie("username")
+}
+
 func SetCookieAfterAuth(c *fiber.Ctx, accessToken string, refreshToken string, username string) {
 	c.Cookie(&fiber.Cookie{
 		Name:     "username",
