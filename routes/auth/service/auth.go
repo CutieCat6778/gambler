@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -265,5 +266,24 @@ func Register(c *fiber.Ctx) error {
 		Message: "Register success",
 		Code:    200,
 		Body:    tokens,
+	})
+}
+
+func Ping(c *fiber.Ctx) error {
+	claims := c.Locals("claims").(jwt.Claims)
+	exp, err := claims.GetExpirationTime()
+	if err != nil {
+		tools.ClearAllCookies(c)
+		return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
+			Success: false,
+			Message: "Internal server error, failed to get expiration",
+			Code:    500,
+		})
+	}
+	return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
+		Success: true,
+		Message: "Pong",
+		Code:    200,
+		Body:    exp,
 	})
 }

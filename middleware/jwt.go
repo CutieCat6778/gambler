@@ -75,6 +75,7 @@ func JwtGuardHandler(c *fiber.Ctx) error {
 	}
 	claims, err := Decode(token)
 	if err != -1 {
+		tools.ClearAllCookies(c)
 		if err == tools.JWT_FAILED_TO_DECODE {
 			return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
 				Success: false,
@@ -102,15 +103,7 @@ func JwtGuardHandler(c *fiber.Ctx) error {
 		}
 	}
 
-	usrn, tErr := claims.GetSubject()
-	if tErr != nil {
-		return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "Invalid token",
-			Code:    401,
-		})
-	}
-	c.Locals("username", usrn)
+	c.Locals("user", claims)
 	c.Locals("isAuthorized", true)
 
 	c.Cookie(&fiber.Cookie{
