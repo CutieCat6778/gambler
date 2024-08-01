@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"gambler/backend/tools"
-	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -65,7 +64,7 @@ func Decode(token string) (jwt.Claims, int) {
 func JwtGuardHandler(c *fiber.Ctx) error {
 	// Check if the request is authorized
 	// If not, return an error
-	token := c.Cookies("accesstoken")
+	token := tools.HeaderParser(c)
 	if token == "" {
 		return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
 			Success: false,
@@ -103,17 +102,8 @@ func JwtGuardHandler(c *fiber.Ctx) error {
 		}
 	}
 
-	c.Locals("user", claims)
+	c.Locals("claims", claims)
 	c.Locals("isAuthorized", true)
-
-	c.Cookie(&fiber.Cookie{
-		Name:     "lastlogin",
-		Value:    strconv.FormatInt(time.Now().Unix(), 10),
-		Path:     "/",
-		HTTPOnly: true,
-		Secure:   true,
-		SameSite: fiber.CookieSameSiteLaxMode,
-	})
 
 	return c.Next()
 }

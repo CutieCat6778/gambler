@@ -6,12 +6,9 @@ import (
 	"gambler/backend/handlers"
 	"gambler/backend/middleware"
 	"gambler/backend/tools"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -54,8 +51,8 @@ func Login(c *fiber.Ctx) error {
 		})
 	}
 
-	cookieAccessToken := c.Cookies("accesstoken")
-	if cookieAccessToken == "" {
+	accessToken := tools.HeaderParser(c)
+	if accessToken == "" {
 		user, err := handlers.DB.GetUserByUsername(req.Username)
 		if err != -1 {
 			if err == tools.DB_REC_NOTFOUND {
@@ -100,8 +97,6 @@ func Login(c *fiber.Ctx) error {
 			}
 		}
 
-		tools.SetCookieAfterAuth(c, tokens.AccessToken, tokens.RefreshToken, user.Username)
-
 		return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
 			Success: true,
 			Message: "Login success",
@@ -112,7 +107,7 @@ func Login(c *fiber.Ctx) error {
 			},
 		})
 	}
-	return handleLoginJWT(cookieAccessToken, c)
+	return handleLoginJWT(accessToken, c)
 }
 
 func handleLoginJWT(accessToken string, c *fiber.Ctx) error {
@@ -168,15 +163,6 @@ func handleLoginJWT(accessToken string, c *fiber.Ctx) error {
 			})
 		}
 	}
-
-	c.Cookie(&fiber.Cookie{
-		Name:     "lastlogin",
-		Value:    strconv.FormatInt(time.Now().Unix(), 10),
-		Path:     "/",
-		HTTPOnly: true,
-		Secure:   true,
-		SameSite: fiber.CookieSameSiteLaxMode,
-	})
 
 	return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
 		Success: true,
@@ -259,8 +245,6 @@ func Register(c *fiber.Ctx) error {
 		}
 	}
 
-	tools.SetCookieAfterAuth(c, tokens.AccessToken, tokens.RefreshToken, user.Username)
-
 	return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
 		Success: true,
 		Message: "Register success",
@@ -270,20 +254,9 @@ func Register(c *fiber.Ctx) error {
 }
 
 func Ping(c *fiber.Ctx) error {
-	claims := c.Locals("claims").(jwt.Claims)
-	exp, err := claims.GetExpirationTime()
-	if err != nil {
-		tools.ClearAllCookies(c)
-		return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "Internal server error, failed to get expiration",
-			Code:    500,
-		})
-	}
 	return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
 		Success: true,
 		Message: "Pong",
 		Code:    200,
-		Body:    exp,
 	})
 }
