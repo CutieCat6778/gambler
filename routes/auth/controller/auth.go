@@ -10,6 +10,6 @@ import (
 func InitAuthRoute(c *fiber.App) {
 	group := c.Group("/auth")
 	group.Post("/login", service.Login)
-	group.Post("/register", service.Register)
+	group.Put("/register", service.Register)
 	group.Get("/ping", middleware.JwtGuardHandler, service.Ping)
 }
