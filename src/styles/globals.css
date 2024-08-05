@@ -1,3 +1,24 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    body {
+        @apply bg-gray-900 text-white font-sans w-full;
+    }
+}
+
+@layer components {
+    input {
+        @apply my-1 px-2 py-1 font-bold rounded text-xl text-black;
+    }
+    h1 {
+        @apply text-4xl font-bold my-3;
+    }
+    h2 {
+        @apply text-3xl font-bold my-2;
+    }
+    table {
+        @apply border-solid border-2;
+    }
+}

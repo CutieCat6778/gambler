@@ -1,32 +1,43 @@
-"use client";
-
+import useLocalStorage from "@/hooks/useLocalStorage";
 import { User } from "@/types/models";
-import { ServerResponse } from "@/types/server";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 
 export default function Home() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
+  const { user, isLoading } = useLocalStorage();
 
-  useEffect(() => {
-    async function getSelf() {
-      const response = await fetch("http://localhost:3000/user/@me");
-      const data: ServerResponse<User> = await response.json();
-      if (!data.success) {
-        router.push("/login");
-        return;
-      }
-      setUser(data.body || null);
+  function isUserBalanceChanged(u: User) {
+    console.log(u);
+    const prevBal = u.balance_history.slice(-1)[0].amount;
+    if (prevBal > u.balance) {
+      return "red-400";
+    } else if (prevBal < u.balance) {
+      return "green-400";
+    } else {
+      return "amber-400";
     }
-    getSelf();
-  });
+  }
 
-  console.log(user);
-  if (user) {
+  if (!isLoading && user) {
     return (
       <main>
-        <h1>Hello, {user.username}</h1>
+        <header className="w-full flex justify-center items-center flex-col">
+          <h1>Hello, {user.username}</h1>
+          <span>
+            Wellcome to Gambler, here you will be the richest men in the world!
+            (But only if you never give up!)
+          </span>
+        </header>
+        <section className="w-full flex justify-center my-10">
+          <div className="w-max">
+            <h3 className="text-2xl font-semibold w-full">Balance</h3>
+            <span
+              className={`text-center w-full font-bold block text-${isUserBalanceChanged(user)}`}
+            >
+              {user.balance} €
+            </span>
+          </div>
+        </section>
       </main>
     );
   } else {
