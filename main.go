@@ -4,6 +4,7 @@ import (
 	"gambler/backend/handlers"
 	authController "gambler/backend/routes/auth/controller"
 	userController "gambler/backend/routes/user/controller"
+	wsController "gambler/backend/routes/ws/controller"
 	"gambler/backend/tools"
 
 	"github.com/goccy/go-json"
@@ -26,12 +27,14 @@ func main() {
 				Code:    code,
 			})
 		},
+		Prefork: true,
 	})
 
 	log.SetLevel(log.LevelInfo)
 
 	userController.InitUserRoute(app)
 	authController.InitAuthRoute(app)
+	wsController.InitWsRoute(app)
 
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
@@ -44,6 +47,7 @@ func main() {
 
 	_ = handlers.NewDB()
 	_ = handlers.NewValidator()
+	_ = handlers.NewCache()
 
 	app.Listen(":3000")
 }
