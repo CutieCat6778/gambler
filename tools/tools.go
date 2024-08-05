@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/log"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/joho/godotenv"
@@ -33,6 +34,22 @@ const (
 	JWT_FAILED_TO_DECODE
 	JWT_INVALID
 	JWT_EXPIRED
+
+	// WS ERROS
+	WS_UUID_DUP
+	WS_UUID_NOTFOUND
+	WS_GAMEID_NOTFOUND
+	WS_INVALID_CONN
+	WS_UNKNOWN_ERR
+
+	// REDIS ERRORS
+	RD_CONN_CLOSED
+	RD_KEY_NOT_FOUND
+	RD_TX_FAILED
+	RD_UNKNOWN
+
+	// GENERAL ERRORS
+	JSON_UNMARSHAL_ERROR
 )
 
 var (
@@ -40,6 +57,8 @@ var (
 	JWT_SECRET    []byte
 	HASH_SECRET   string
 	COOKIE_SECRET string
+	HOST_REDIS    string
+	PSW_REDIS     string
 )
 
 func init() {
@@ -52,6 +71,8 @@ func init() {
 	JWT_SECRET = []byte(os.Getenv("JWT_SECRET"))
 	HASH_SECRET = os.Getenv("HASH_SECRET")
 	COOKIE_SECRET = os.Getenv("COOKIE_SECRET")
+	HOST_REDIS = os.Getenv("REDIS_HOST")
+	PSW_REDIS = os.Getenv("REDIS_PSW")
 	fmt.Println("[ENV] Loaded Enviroment Variables")
 	fmt.Println(DATABASE)
 }
@@ -63,10 +84,13 @@ func ParseUInt(s string) uint {
 }
 
 func ConfigureApp(app *fiber.App) {
-	app.Use(cors.New())
 	app.Use(cors.New(cors.Config{
 		AllowHeaders: "Origin,Content-Type,Accept,Content-Length,Accept-Language,Accept-Encoding,Connection,Access-Control-Allow-Origin",
-		AllowOrigins: "http://localhost:3001",
+		AllowMethods: "DELETE, POST, GET, PUT",
+		AllowOriginsFunc: func(origin string) bool {
+			log.Info(origin)
+			return strings.Contains(origin, "localhost")
+		},
 	}))
 
 	app.Use(limiter.New(limiter.Config{

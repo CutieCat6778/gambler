@@ -209,6 +209,7 @@ func Register(c *fiber.Ctx) error {
 		Password: string(hashedPasssword),
 		Email:    req.Email,
 		Name:     req.Name,
+		Games:    []models.Games{},
 	}
 
 	dbErr := handlers.DB.CreateUser(user)
@@ -249,7 +250,10 @@ func Register(c *fiber.Ctx) error {
 		Success: true,
 		Message: "Register success",
 		Code:    200,
-		Body:    tokens,
+		Body: LoginRes{
+			Token: tokens,
+			User:  &user,
+		},
 	})
 }
 
