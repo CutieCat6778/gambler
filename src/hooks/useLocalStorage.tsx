@@ -58,6 +58,9 @@ export default function useLocalStorage() {
   useEffect(() => {
     if (tokens && user) {
       setIsLoading(false);
+      if (!user || !user.name) {
+        clearAll(localStorage);
+      }
     }
   }, [tokens, user]);
 
@@ -85,6 +88,13 @@ export default function useLocalStorage() {
 
   function getToken() {
     return tokens;
+  }
+
+  function clearAll(localStorage: Storage) {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("isAuthenticated");
+    localStorage.removeItem("exp");
   }
 
   return {
