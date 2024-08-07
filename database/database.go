@@ -35,7 +35,7 @@ func InitDatabase() *gorm.DB {
 
 	fmt.Println("[DATABASE] Database connected")
 
-	Database.AutoMigrate(&models.User{}, &models.Games{}, &models.BalanceHistory{})
+	Database.AutoMigrate(&models.User{}, &models.Games{}, &models.BalanceHistory{}, &models.Bet{}, &models.UserBet{})
 
 	return Database
 }

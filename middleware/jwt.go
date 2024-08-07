@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/log"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -62,10 +63,12 @@ func Decode(token string) (jwt.Claims, int) {
 }
 
 func JwtGuardHandler(c *fiber.Ctx) error {
+	log.Info("Connected")
 	// Check if the request is authorized
 	// If not, return an error
 	token := tools.HeaderParser(c)
 	if token == "" {
+		log.Info("Unauthorized, no authorization protocol used")
 		return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
 			Success: false,
 			Message: "Unauthorized, no authorization protocol used",
@@ -74,7 +77,7 @@ func JwtGuardHandler(c *fiber.Ctx) error {
 	}
 	claims, err := Decode(token)
 	if err != -1 {
-		tools.ClearAllCookies(c)
+		log.Info("Failed to decode token")
 		if err == tools.JWT_FAILED_TO_DECODE {
 			return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
 				Success: false,

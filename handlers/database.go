@@ -24,6 +24,8 @@ func NewDB() DBHandler {
 	return DB
 }
 
+// User methods
+
 func (h DBHandler) CreateUser(user models.User) int {
 	tx := h.DB.Begin()
 	defer func() {
@@ -87,7 +89,12 @@ func (h DBHandler) GetUserByID(id uint) (*models.User, int) {
 
 func (h DBHandler) GetUserByUsername(username string) (*models.User, int) {
 	var user models.User
-	res := h.DB.Preload("BalanceHistory").Preload("Games").Where("username = ?", username).First(&user)
+	res := h.DB.Preload("BalanceHistory", func(db *gorm.DB) *gorm.DB {
+		return db.Order("created_at desc").Limit(1)
+	}).Preload("Games", func(db *gorm.DB) *gorm.DB {
+		return db.Order("created_at desc").Limit(1)
+	}).Where("username = ?", username).First(&user)
+
 	if res.Error != nil {
 		return nil, dbHandleError(res.Error)
 	}
@@ -101,6 +108,8 @@ func (h DBHandler) DeleteUserByID(id uint) int {
 	}
 	return -1
 }
+
+// Game methods
 
 func (h DBHandler) CreateGame(game models.Games) int {
 	res := h.DB.Model(&game)
@@ -140,6 +149,8 @@ func (h DBHandler) CloseGame(gameId string, balances []models.BalanceHistory) in
 	return -1
 }
 
+// BalanceHistory methods
+
 func (h DBHandler) CreateBalanceHistory(balance models.BalanceHistory) int {
 	res := h.DB.Create(&balance)
 	if res.Error != nil {
@@ -148,8 +159,12 @@ func (h DBHandler) CreateBalanceHistory(balance models.BalanceHistory) int {
 	return -1
 }
 
-func (h DBHandler) FindBalanceHistoryByUser(user models.User) (*[]models.BalanceHistory, int) {
+func (h DBHandler) FindBalanceHistoryByUser(username string) (*[]models.BalanceHistory, int) {
 	var balance []models.BalanceHistory
+	user, err := h.GetUserByUsername(username)
+	if err != -1 {
+		return nil, err
+	}
 	res := h.DB.Model(&user).Association("BalanceHistory").Find(&balance)
 	if res != nil {
 		return nil, dbHandleError(res)
@@ -157,12 +172,89 @@ func (h DBHandler) FindBalanceHistoryByUser(user models.User) (*[]models.Balance
 	return &balance, -1
 }
 
-func dbHandleError(e error) int {
-	if errors.Is(e, gorm.ErrDuplicatedKey) {
-		return tools.DB_DUP_KEY
-	} else if errors.Is(e, gorm.ErrRecordNotFound) {
-		return tools.DB_REC_NOTFOUND
-	} else {
-		return tools.DB_UNKOWN_ERR
+func (h DBHandler) AddBalanceHistory(balance models.BalanceHistory, userId string) int {
+	user, err := h.GetUserByUsername(userId)
+	if err != -1 {
+		return err
 	}
+	res := h.DB.Model(&user).Association("BalanceHistory").Append(&balance)
+	if res != nil {
+		return dbHandleError(res)
+	}
+	return -1
+}
+
+// Bet methods
+
+func (h DBHandler) CreateBet(bet models.Bet) int {
+	res := h.DB.Create(&bet)
+	if res.Error != nil {
+		return dbHandleError(res.Error)
+	}
+	return -1
+}
+
+func (h DBHandler) FindBet(betID int) (*models.Bet, int) {
+	var bet models.Bet
+	res := h.DB.First(&bet, betID)
+	if res.Error != nil {
+		return nil, dbHandleError(res.Error)
+	}
+	return &bet, -1
+}
+
+func (h DBHandler) UpdateBet(bet models.Bet) int {
+	res := h.DB.Save(&bet)
+	if res.Error != nil {
+		return dbHandleError(res.Error)
+	}
+	return -1
+}
+
+func (h DBHandler) DeleteBet(betID int) int {
+	res := h.DB.Delete(&models.Bet{}, betID)
+	if res.Error != nil {
+		return dbHandleError(res.Error)
+	}
+	return -1
+}
+
+func (h DBHandler) GetUserBet(username string) (*[]models.UserBet, int) {
+	var user models.User
+	res := h.DB.Where("username = ?", username).First(&user)
+	if res.Error != nil {
+		return nil, dbHandleError(res.Error)
+	}
+
+	var bets []models.UserBet
+	res = h.DB.Where("user_id = ?", user.ID).Find(&bets)
+	if res.Error != nil {
+		return nil, dbHandleError(res.Error)
+	}
+
+	return &bets, -1
+}
+
+func (h DBHandler) GetBetsByBetID(betID uint) (*[]models.UserBet, int) {
+	var bets []models.UserBet
+	res := h.DB.Where("bet_id = ?", betID).Find(&bets)
+	if res.Error != nil {
+		return nil, dbHandleError(res.Error)
+	}
+	return &bets, -1
+}
+
+// Helper functions
+
+func dbHandleError(e error) int {
+	var res int
+	if errors.Is(e, gorm.ErrDuplicatedKey) {
+		res = tools.DB_DUP_KEY
+	} else if errors.Is(e, gorm.ErrRecordNotFound) {
+		res = tools.DB_REC_NOTFOUND
+	} else {
+		res = tools.DB_UNKOWN_ERR
+	}
+	log.Info("DB Error: ", e.Error(), res)
+	return res
 }

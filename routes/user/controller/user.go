@@ -11,4 +11,6 @@ func InitUserRoute(c *fiber.App) {
 	group := c.Group("/user", middleware.JwtGuardHandler)
 	group.Get("/:id<int>", service.GetUserByID)
 	group.Get("/@me", service.GetSelf)
+	group.Get("/balance", service.GetUserBalance)
+	group.Get("/bets", service.GetUserBets)
 }
