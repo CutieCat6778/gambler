@@ -27,8 +27,9 @@ func main() {
 				Code:    code,
 			})
 		},
-		Prefork: true,
 	})
+
+	tools.ConfigureApp(app)
 
 	log.SetLevel(log.LevelInfo)
 
@@ -43,7 +44,6 @@ func main() {
 			Code:    200,
 		})
 	})
-	tools.ConfigureApp(app)
 
 	_ = handlers.NewDB()
 	_ = handlers.NewValidator()

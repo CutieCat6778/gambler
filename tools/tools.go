@@ -3,7 +3,6 @@ package tools
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -84,13 +83,17 @@ func ParseUInt(s string) uint {
 }
 
 func ConfigureApp(app *fiber.App) {
+	// app.Use(cors.New(cors.Config{
+	// 	AllowHeaders: "Origin,Content-Type,Accept,Content-Length,Accept-Language,Accept-Encoding,Connection,Access-Control-Allow-Origin,Authorization",
+	// 	AllowMethods: "DELETE, POST, GET, PUT, OPTIONS",
+	// 	AllowOriginsFunc: func(origin string) bool {
+	// 		log.Info(origin)
+	// 		return strings.Contains(origin, "localhost")
+	// 	},
+	// }))
 	app.Use(cors.New(cors.Config{
-		AllowHeaders: "Origin,Content-Type,Accept,Content-Length,Accept-Language,Accept-Encoding,Connection,Access-Control-Allow-Origin",
-		AllowMethods: "DELETE, POST, GET, PUT",
-		AllowOriginsFunc: func(origin string) bool {
-			log.Info(origin)
-			return strings.Contains(origin, "localhost")
-		},
+		AllowOrigins: "http://localhost:3001",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
 	}))
 
 	app.Use(limiter.New(limiter.Config{
@@ -112,51 +115,9 @@ func ConfigureApp(app *fiber.App) {
 	}))
 }
 
-func ClearAllCookies(c *fiber.Ctx) {
-	c.ClearCookie("accesstoken")
-	c.ClearCookie("refreshtoken")
-	c.ClearCookie("username")
-}
-
-func SetCookieAfterAuth(c *fiber.Ctx, accessToken string, refreshToken string, username string) {
-	c.Cookie(&fiber.Cookie{
-		Name:     "username",
-		Value:    username,
-		Path:     "/",
-		HTTPOnly: true,
-		Secure:   false,
-		SameSite: fiber.CookieSameSiteLaxMode,
-	})
-	c.Cookie(&fiber.Cookie{
-		Name:     "accesstoken",
-		Value:    accessToken,
-		MaxAge:   86400,
-		Path:     "/",
-		HTTPOnly: true,
-		Secure:   false,
-		SameSite: fiber.CookieSameSiteLaxMode,
-	})
-	c.Cookie(&fiber.Cookie{
-		Name:     "refreshtoken",
-		Value:    refreshToken,
-		MaxAge:   86400 * 7,
-		Path:     "/",
-		HTTPOnly: true,
-		Secure:   false,
-		SameSite: fiber.CookieSameSiteLaxMode,
-	})
-	c.Cookie(&fiber.Cookie{
-		Name:     "lastlogin",
-		Value:    strconv.FormatInt(time.Now().Unix(), 10),
-		Path:     "/",
-		HTTPOnly: true,
-		Secure:   false,
-		SameSite: fiber.CookieSameSiteLaxMode,
-	})
-}
-
 func HeaderParser(c *fiber.Ctx) string {
 	headers := c.GetReqHeaders()
+	log.Info(headers)
 	if len(headers["Authorization"]) == 0 || headers["Authorization"] == nil {
 		return ""
 	}

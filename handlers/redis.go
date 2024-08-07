@@ -6,6 +6,7 @@ import (
 	"gambler/backend/tools"
 	"time"
 
+	"github.com/gofiber/fiber/v2/log"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -31,6 +32,7 @@ func NewCache() *CacheHandler {
 		}),
 		ctx: context.Background(),
 	}
+	log.Info("[CACHE] Connected to Redis")
 	return &Cache
 }
 
