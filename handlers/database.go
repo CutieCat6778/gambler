@@ -4,6 +4,7 @@ import (
 	"errors"
 	"gambler/backend/database"
 	"gambler/backend/database/models"
+	"gambler/backend/database/models/customTypes"
 	"gambler/backend/tools"
 
 	"github.com/gofiber/fiber/v2/log"
@@ -238,6 +239,15 @@ func (h DBHandler) GetUserBet(username string) (*[]models.UserBet, int) {
 func (h DBHandler) GetBetsByBetID(betID uint) (*[]models.UserBet, int) {
 	var bets []models.UserBet
 	res := h.DB.Where("bet_id = ?", betID).Find(&bets)
+	if res.Error != nil {
+		return nil, dbHandleError(res.Error)
+	}
+	return &bets, -1
+}
+
+func (h DBHandler) GetAllActiveBets() (*[]models.Bet, int) {
+	var bets []models.Bet
+	res := h.DB.Where("status = ?", customTypes.Open).Find(&bets)
 	if res.Error != nil {
 		return nil, dbHandleError(res.Error)
 	}
