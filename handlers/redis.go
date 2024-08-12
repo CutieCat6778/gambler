@@ -3,6 +3,8 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"gambler/backend/database/models"
 	"gambler/backend/tools"
 	"time"
 
@@ -36,43 +38,87 @@ func NewCache() *CacheHandler {
 	return &Cache
 }
 
-func (c *CacheHandler) UserJoinGame(userId string, uuid string, gameId string) (*[]string, int) {
-	user, err := DB.GetUserByUsername(userId)
-	if user == nil || err != -1 {
-		return nil, err
+// StoreUserConnection stores a user's WebSocket connection ID in Redis
+func (c *CacheHandler) StoreUserConnection(userID, connectionID string) int {
+	cacheKey := fmt.Sprintf("user:%s:connection", userID)
+	err := c.redis.Set(c.ctx, cacheKey, connectionID, time.Hour*6).Err()
+	if err != nil {
+		return HandleRedisError(err)
 	}
-	game, err := c.GetGameById(gameId)
-	if game == nil || err != -1 {
-		return nil, err
-	}
-	game.Users = append(game.Users, uuid)
-	err = c.SetGameById(gameId, *game)
-	if err != -1 {
-		return nil, err
-	}
-	return &game.Users, -1
+	return -1
 }
 
-func (c *CacheHandler) GetGameById(gameId string) (*CurrentGame, int) {
-	var game CurrentGame
-	gameDataString, err := c.redis.Get(c.ctx, "g-"+gameId).Result()
-	if err == nil {
+// GetUserConnection retrieves a user's WebSocket connection ID from Redis
+func (c *CacheHandler) GetUserConnection(userID string) (string, int) {
+	cacheKey := fmt.Sprintf("user:%s:connection", userID)
+	connectionID, err := c.redis.Get(c.ctx, cacheKey).Result()
+	if err == redis.Nil {
+		return "", tools.RD_KEY_NOT_FOUND
+	} else if err != nil {
+		return "", HandleRedisError(err)
+	}
+	return connectionID, -1
+}
+
+// RemoveUserConnection removes a user's WebSocket connection ID from Redis
+func (c *CacheHandler) RemoveUserConnection(userID string) int {
+	cacheKey := fmt.Sprintf("user:%s:connection", userID)
+	err := c.redis.Del(c.ctx, cacheKey).Err()
+	if err != nil {
+		return HandleRedisError(err)
+	}
+	return -1
+}
+
+func (c *CacheHandler) SetBet(bet models.Bet) int {
+	res := c.redis.Set(c.ctx, "b-"+fmt.Sprintf("%d", bet.ID), bet, time.Hour*6)
+	if res.Err() != nil {
+		return HandleRedisError(res.Err())
+	}
+	return -1
+}
+
+func (c *CacheHandler) GetBetById(key string) (*models.Bet, int) {
+	var bet models.Bet
+	betDataString, err := c.redis.Get(c.ctx, key).Result()
+	if err == redis.Nil {
+		return nil, -1
+	} else if err != nil {
 		return nil, HandleRedisError(err)
 	}
 	err = json.Unmarshal(
-		[]byte(gameDataString),
-		&game,
+		[]byte(betDataString),
+		&bet,
 	)
 	if err != nil {
 		return nil, tools.JSON_UNMARSHAL_ERROR
 	}
-	return &game, -1
+	return &bet, -1
 }
 
-func (c *CacheHandler) SetGameById(key string, value CurrentGame) int {
-	res := c.redis.Set(c.ctx, "g-"+key, value, time.Hour*6)
-	if res.Err() != nil {
-		return HandleRedisError(res.Err())
+func (c *CacheHandler) GetAllBet() (*[]models.Bet, int) {
+	keys, err := c.redis.Keys(c.ctx, "b-*").Result()
+	if err != nil {
+		return nil, HandleRedisError(err)
+	}
+	var bets []models.Bet
+	for _, key := range keys {
+		bet, err := c.GetBetById(key)
+		if err != -1 {
+			return nil, err
+		}
+		bets = append(bets, *bet)
+	}
+	return &bets, -1
+}
+
+func (c *CacheHandler) LoadDatabaseBets() int {
+	bets, err := DB.GetAllActiveBets()
+	if err != -1 {
+		return err
+	}
+	for _, bet := range *bets {
+		c.SetBet(bet)
 	}
 	return -1
 }

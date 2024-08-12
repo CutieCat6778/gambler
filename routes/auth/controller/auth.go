@@ -11,5 +11,6 @@ func InitAuthRoute(c *fiber.App) {
 	group := c.Group("/auth")
 	group.Post("/login", service.Login)
 	group.Put("/register", service.Register)
+	group.Get("/refresh", service.RefreshToken)
 	group.Get("/ping", middleware.JwtGuardHandler, service.Ping)
 }

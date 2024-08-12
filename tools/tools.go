@@ -3,6 +3,7 @@ package tools
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -52,12 +53,13 @@ const (
 )
 
 var (
-	DATABASE      string
-	JWT_SECRET    []byte
-	HASH_SECRET   string
-	COOKIE_SECRET string
-	HOST_REDIS    string
-	PSW_REDIS     string
+	DATABASE           string
+	JWT_SECRET         []byte
+	HASH_SECRET        string
+	COOKIE_SECRET      string
+	HOST_REDIS         string
+	PSW_REDIS          string
+	WEBSOCKET_VERSEION byte
 )
 
 func init() {
@@ -72,6 +74,11 @@ func init() {
 	COOKIE_SECRET = os.Getenv("COOKIE_SECRET")
 	HOST_REDIS = os.Getenv("REDIS_HOST")
 	PSW_REDIS = os.Getenv("REDIS_PSW")
+	ver, err := strconv.ParseInt(os.Getenv("WEBSOCKET_VERSION"), 10, 64)
+	if err != nil {
+		panic(err)
+	}
+	WEBSOCKET_VERSEION = byte(ver)
 	fmt.Println("[ENV] Loaded Enviroment Variables")
 	fmt.Println(DATABASE)
 }

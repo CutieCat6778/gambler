@@ -47,7 +47,8 @@ func main() {
 
 	_ = handlers.NewDB()
 	_ = handlers.NewValidator()
-	_ = handlers.NewCache()
+	cache := handlers.NewCache()
+	_ = handlers.NewWebSocketHandler(cache)
 
 	app.Listen(":3000")
 }

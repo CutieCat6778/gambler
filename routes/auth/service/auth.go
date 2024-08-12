@@ -172,6 +172,79 @@ func handleLoginJWT(accessToken string, c *fiber.Ctx) error {
 	})
 }
 
+func RefreshToken(c *fiber.Ctx) error {
+	header := tools.HeaderParser(c)
+	if header == "" {
+		return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
+			Success: false,
+			Message: "Bad Request, token not found",
+			Code:    400,
+		})
+	}
+
+	claims, err := middleware.Decode(header)
+	if err != -1 {
+		if err == tools.JWT_FAILED_TO_DECODE {
+			return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
+				Success: false,
+				Message: "Bad Request, token may in wrong format",
+				Code:    400,
+			})
+		} else if err == tools.JWT_INVALID {
+			return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
+				Success: false,
+				Message: "Unauthorized, invalid token",
+				Code:    401,
+			})
+		} else if err == tools.JWT_EXPIRED {
+			return c.Status(fiber.StatusRequestTimeout).JSON(tools.GlobalErrorHandlerResp{
+				Success: false,
+				Message: "Unauthorized, token expired",
+				Code:    fiber.StatusRequestTimeout,
+			})
+		} else {
+			return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
+				Success: false,
+				Message: "Internal server error",
+				Code:    500,
+			})
+		}
+	}
+
+	userId, jwtErr := claims.GetSubject()
+	if jwtErr != nil {
+		return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
+			Success: false,
+			Message: "Internal server error, failed to get user id",
+			Code:    500,
+		})
+	}
+
+	tokens, err := middleware.Sign(userId)
+	if err != -1 {
+		if err == tools.JWT_FAILED_TO_SIGN {
+			return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
+				Success: false,
+				Message: "Internal server error, failed to sign token",
+				Code:    500,
+			})
+		} else {
+			return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
+				Success: false,
+				Message: "Internal server error",
+				Code:    500,
+			})
+		}
+	}
+
+	return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
+		Success: true,
+		Message: "Token refreshed",
+		Code:    200,
+		Body:    tokens,
+	})
+}
+
 func Register(c *fiber.Ctx) error {
 	req := new(RegisterReq)
 
