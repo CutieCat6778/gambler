@@ -245,6 +245,15 @@ func (h DBHandler) GetBetsByBetID(betID uint) (*[]models.UserBet, int) {
 	return &bets, -1
 }
 
+func (h DBHandler) GetBetByBetName(name string) (*models.Bet, int) {
+	var bet models.Bet
+	res := h.DB.Where("name = ?", name).First(&bet)
+	if res.Error != nil {
+		return nil, dbHandleError(res.Error)
+	}
+	return &bet, -1
+}
+
 func (h DBHandler) GetAllActiveBets() (*[]models.Bet, int) {
 	var bets []models.Bet
 	res := h.DB.Where("status = ?", customTypes.Open).Find(&bets)

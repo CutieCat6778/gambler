@@ -3,6 +3,7 @@ package models
 import (
 	"gambler/backend/database/models/customTypes"
 
+	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
@@ -11,7 +12,7 @@ type Bet struct {
 	Name        string                `json:"name" gorm:"unique"`
 	Description string                `json:"description"`
 	UserBets    []UserBet             `json:"user_bets" gorm:"foreignKey:BetID"`
-	BetOptions  []string              `json:"betOptions" gorm:"type:text[]"`
+	BetOptions  pq.StringArray        `json:"betOptions" gorm:"type:text[]"`
 	Status      customTypes.BetStatus `json:"status"`
 }
 

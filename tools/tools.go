@@ -23,35 +23,6 @@ type (
 	}
 )
 
-const (
-	// DATABASE ERRORS
-	DB_UNKOWN_ERR = iota
-	DB_REC_NOTFOUND
-	DB_DUP_KEY
-
-	// JWT ERRORS
-	JWT_FAILED_TO_SIGN
-	JWT_FAILED_TO_DECODE
-	JWT_INVALID
-	JWT_EXPIRED
-
-	// WS ERROS
-	WS_UUID_DUP
-	WS_UUID_NOTFOUND
-	WS_GAMEID_NOTFOUND
-	WS_INVALID_CONN
-	WS_UNKNOWN_ERR
-
-	// REDIS ERRORS
-	RD_CONN_CLOSED
-	RD_KEY_NOT_FOUND
-	RD_TX_FAILED
-	RD_UNKNOWN
-
-	// GENERAL ERRORS
-	JSON_UNMARSHAL_ERROR
-)
-
 var (
 	DATABASE           string
 	JWT_SECRET         []byte
@@ -59,10 +30,12 @@ var (
 	COOKIE_SECRET      string
 	HOST_REDIS         string
 	PSW_REDIS          string
+	URL_REDIS          string
 	WEBSOCKET_VERSEION byte
+	MASTER_IDS         string
 )
 
-func init() {
+func InitEnvVars() {
 	err := godotenv.Load(".env")
 	if err != nil {
 		panic(err)
@@ -74,11 +47,48 @@ func init() {
 	COOKIE_SECRET = os.Getenv("COOKIE_SECRET")
 	HOST_REDIS = os.Getenv("REDIS_HOST")
 	PSW_REDIS = os.Getenv("REDIS_PSW")
+	URL_REDIS = os.Getenv("REDIS_URL")
 	ver, err := strconv.ParseInt(os.Getenv("WEBSOCKET_VERSION"), 10, 64)
 	if err != nil {
 		panic(err)
 	}
 	WEBSOCKET_VERSEION = byte(ver)
+	MASTER_IDS = os.Getenv("MASTER_IDS")
+	// Check for missing variables and log them
+	missingVars := []string{}
+	if DATABASE == "" {
+		missingVars = append(missingVars, "POSTGRES_DB")
+	}
+	if len(JWT_SECRET) == 0 {
+		missingVars = append(missingVars, "JWT_SECRET")
+	}
+	if HASH_SECRET == "" {
+		missingVars = append(missingVars, "HASH_SECRET")
+	}
+	if COOKIE_SECRET == "" {
+		missingVars = append(missingVars, "COOKIE_SECRET")
+	}
+	if HOST_REDIS == "" {
+		missingVars = append(missingVars, "REDIS_HOST")
+	}
+	if PSW_REDIS == "" {
+		missingVars = append(missingVars, "REDIS_PSW")
+	}
+	if URL_REDIS == "" {
+		missingVars = append(missingVars, "REDIS_URL")
+	}
+	if WEBSOCKET_VERSEION == 0 {
+		missingVars = append(missingVars, "WEBSOCKET_VERSION")
+	}
+	if MASTER_IDS == "" {
+		missingVars = append(missingVars, "MASTER_IDS")
+	}
+
+	// If there are any missing variables, log them and panic
+	if len(missingVars) > 0 {
+		log.Fatalf("[ENV] The following environment variables are missing: %v", missingVars)
+		panic("Some Environment Variables are missing")
+	}
 	fmt.Println("[ENV] Loaded Enviroment Variables")
 	fmt.Println(DATABASE)
 }
@@ -89,15 +99,11 @@ func ParseUInt(s string) uint {
 	return n
 }
 
+func AddCacheTime(c *fiber.Ctx, duration time.Duration) {
+	c.Response().Header.Add("Cache-Time", fmt.Sprintf("%d", int(duration.Seconds())))
+}
+
 func ConfigureApp(app *fiber.App) {
-	// app.Use(cors.New(cors.Config{
-	// 	AllowHeaders: "Origin,Content-Type,Accept,Content-Length,Accept-Language,Accept-Encoding,Connection,Access-Control-Allow-Origin,Authorization",
-	// 	AllowMethods: "DELETE, POST, GET, PUT, OPTIONS",
-	// 	AllowOriginsFunc: func(origin string) bool {
-	// 		log.Info(origin)
-	// 		return strings.Contains(origin, "localhost")
-	// 	},
-	// }))
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "http://localhost:3001",
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",

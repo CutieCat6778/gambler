@@ -1,21 +1,21 @@
 package handlers
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"gambler/backend/database/models"
 	"gambler/backend/tools"
+	"strings"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
-	"github.com/redis/go-redis/v9"
+	"github.com/gofiber/fiber/v2/middleware/cache"
+	"github.com/gofiber/storage/redis/v3"
 )
 
 type (
 	CacheHandler struct {
-		redis *redis.Client
-		ctx   context.Context
+		Redis *redis.Storage
 	}
 	CurrentGame struct {
 		GameId string
@@ -25,23 +25,36 @@ type (
 
 var Cache CacheHandler
 
-func NewCache() *CacheHandler {
+func NewCache(app *fiber.App) *CacheHandler {
+	log.Info(tools.HOST_REDIS, tools.PSW_REDIS, "ABC")
+	if tools.HOST_REDIS == "" || tools.PSW_REDIS == "" {
+		log.Fatal("[CACHE] Redis connection details not found in .env")
+		panic("Redis connection details not found in .env")
+	}
 	Cache = CacheHandler{
-		redis: redis.NewClient(&redis.Options{
-			Addr:     tools.HOST_REDIS,
+		Redis: redis.New(redis.Config{
+			Host:     tools.HOST_REDIS,
+			Port:     18254,
 			Password: tools.PSW_REDIS,
-			DB:       0,
+			Database: 0,
 		}),
-		ctx: context.Background(),
 	}
 	log.Info("[CACHE] Connected to Redis")
 	return &Cache
 }
 
+func AddCache(exp time.Duration) fiber.Handler {
+	return cache.New(cache.Config{
+		Expiration:   exp,
+		CacheControl: true,
+		Storage:      Cache.Redis,
+	})
+}
+
 // StoreUserConnection stores a user's WebSocket connection ID in Redis
 func (c *CacheHandler) StoreUserConnection(userID, connectionID string) int {
 	cacheKey := fmt.Sprintf("user:%s:connection", userID)
-	err := c.redis.Set(c.ctx, cacheKey, connectionID, time.Hour*6).Err()
+	err := c.Redis.Set(cacheKey, []byte(connectionID), time.Hour*6)
 	if err != nil {
 		return HandleRedisError(err)
 	}
@@ -51,19 +64,19 @@ func (c *CacheHandler) StoreUserConnection(userID, connectionID string) int {
 // GetUserConnection retrieves a user's WebSocket connection ID from Redis
 func (c *CacheHandler) GetUserConnection(userID string) (string, int) {
 	cacheKey := fmt.Sprintf("user:%s:connection", userID)
-	connectionID, err := c.redis.Get(c.ctx, cacheKey).Result()
-	if err == redis.Nil {
+	connectionID, err := c.Redis.Get(cacheKey)
+	if err != nil {
 		return "", tools.RD_KEY_NOT_FOUND
 	} else if err != nil {
 		return "", HandleRedisError(err)
 	}
-	return connectionID, -1
+	return string(connectionID), -1
 }
 
 // RemoveUserConnection removes a user's WebSocket connection ID from Redis
 func (c *CacheHandler) RemoveUserConnection(userID string) int {
 	cacheKey := fmt.Sprintf("user:%s:connection", userID)
-	err := c.redis.Del(c.ctx, cacheKey).Err()
+	err := c.Redis.Delete(cacheKey)
 	if err != nil {
 		return HandleRedisError(err)
 	}
@@ -71,38 +84,36 @@ func (c *CacheHandler) RemoveUserConnection(userID string) int {
 }
 
 func (c *CacheHandler) SetBet(bet models.Bet) int {
-	res := c.redis.Set(c.ctx, "b-"+fmt.Sprintf("%d", bet.ID), bet, time.Hour*6)
-	if res.Err() != nil {
-		return HandleRedisError(res.Err())
+	res := c.Redis.Set("b-"+fmt.Sprintf("%d", bet.ID), []byte(bet.Name), time.Hour*6)
+	if res != nil {
+		return HandleRedisError(res)
 	}
 	return -1
 }
 
 func (c *CacheHandler) GetBetById(key string) (*models.Bet, int) {
-	var bet models.Bet
-	betDataString, err := c.redis.Get(c.ctx, key).Result()
-	if err == redis.Nil {
-		return nil, -1
-	} else if err != nil {
+	betId, err := c.Redis.Get(key)
+	if err != nil {
 		return nil, HandleRedisError(err)
 	}
-	err = json.Unmarshal(
-		[]byte(betDataString),
-		&bet,
-	)
-	if err != nil {
-		return nil, tools.JSON_UNMARSHAL_ERROR
+	bet, dbErr := DB.GetBetByBetName(string(betId))
+	if dbErr != -1 {
+		return nil, dbErr
 	}
-	return &bet, -1
+	return bet, -1
 }
 
 func (c *CacheHandler) GetAllBet() (*[]models.Bet, int) {
-	keys, err := c.redis.Keys(c.ctx, "b-*").Result()
+	keys, err := c.Redis.Keys()
 	if err != nil {
 		return nil, HandleRedisError(err)
 	}
 	var bets []models.Bet
 	for _, key := range keys {
+		key := string(key)
+		if strings.HasPrefix(key, "b-") {
+			continue
+		}
 		bet, err := c.GetBetById(key)
 		if err != -1 {
 			return nil, err
@@ -124,13 +135,5 @@ func (c *CacheHandler) LoadDatabaseBets() int {
 }
 
 func HandleRedisError(e error) int {
-	if e.Error() == redis.ErrClosed.Error() {
-		return tools.RD_CONN_CLOSED
-	} else if e.Error() == redis.Nil.Error() {
-		return tools.RD_KEY_NOT_FOUND
-	} else if e.Error() == redis.TxFailedErr.Error() {
-		return tools.RD_TX_FAILED
-	} else {
-		return tools.RD_UNKNOWN
-	}
+	return tools.RD_UNKNOWN
 }
