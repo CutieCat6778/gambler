@@ -7,6 +7,7 @@ import (
 	"gambler/backend/middleware"
 	"gambler/backend/tools"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
@@ -97,6 +98,7 @@ func Login(c *fiber.Ctx) error {
 			}
 		}
 
+		tools.AddCacheTime(c, time.Hour*6)
 		return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
 			Success: true,
 			Message: "Login success",
@@ -283,6 +285,7 @@ func Register(c *fiber.Ctx) error {
 		Email:    req.Email,
 		Name:     req.Name,
 		Games:    []models.Games{},
+		UserBet:  []models.UserBet{},
 	}
 
 	dbErr := handlers.DB.CreateUser(user)
