@@ -92,8 +92,6 @@ func (h DBHandler) GetUserByUsername(username string) (*models.User, int) {
 	var user models.User
 	res := h.DB.Preload("BalanceHistory", func(db *gorm.DB) *gorm.DB {
 		return db.Order("created_at desc").Limit(1)
-	}).Preload("Games", func(db *gorm.DB) *gorm.DB {
-		return db.Order("created_at desc").Limit(1)
 	}).Where("username = ?", username).First(&user)
 
 	if res.Error != nil {
@@ -104,46 +102,6 @@ func (h DBHandler) GetUserByUsername(username string) (*models.User, int) {
 
 func (h DBHandler) DeleteUserByID(id uint) int {
 	res := h.DB.Delete(&models.User{}, id)
-	if res.Error != nil {
-		return dbHandleError(res.Error)
-	}
-	return -1
-}
-
-// Game methods
-
-func (h DBHandler) CreateGame(game models.Games) int {
-	res := h.DB.Model(&game)
-	if res.Error != nil {
-		return dbHandleError(res.Error)
-	}
-	return -1
-}
-
-func (h DBHandler) FindGameByUser(user models.User, gameId string) (*models.Games, int) {
-	var game models.Games
-	res := h.DB.Model(&user).Where("id in ?", gameId).Association("Games").Find(&game)
-	if res != nil {
-		return nil, dbHandleError(res)
-	}
-	return &game, -1
-}
-
-func (h DBHandler) FindGameByID(gameId string) (*models.Games, int) {
-	var game models.Games
-	res := h.DB.First(&game, gameId)
-	if res.Error != nil {
-		return nil, dbHandleError(res.Error)
-	}
-	return &game, -1
-}
-
-func (h DBHandler) CloseGame(gameId string, balances []models.BalanceHistory) int {
-	game, err := h.FindGameByID(gameId)
-	if err != -1 {
-		return err
-	}
-	res := h.DB.Save(&game)
 	if res.Error != nil {
 		return dbHandleError(res.Error)
 	}

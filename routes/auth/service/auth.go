@@ -113,7 +113,7 @@ func Login(c *fiber.Ctx) error {
 }
 
 func handleLoginJWT(accessToken string, c *fiber.Ctx) error {
-	claims, err := middleware.Decode(accessToken)
+	claims, err := middleware.Decode(accessToken, false)
 	if err != -1 {
 		if err == tools.JWT_FAILED_TO_DECODE {
 			return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
@@ -184,7 +184,7 @@ func RefreshToken(c *fiber.Ctx) error {
 		})
 	}
 
-	claims, err := middleware.Decode(header)
+	claims, err := middleware.Decode(header, true)
 	if err != -1 {
 		if err == tools.JWT_FAILED_TO_DECODE {
 			return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
@@ -284,7 +284,6 @@ func Register(c *fiber.Ctx) error {
 		Password: string(hashedPasssword),
 		Email:    req.Email,
 		Name:     req.Name,
-		Games:    []models.Games{},
 		UserBet:  []models.UserBet{},
 	}
 

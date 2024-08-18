@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"gambler/backend/database/models"
 	"gambler/backend/tools"
@@ -39,6 +40,7 @@ func NewCache(app *fiber.App) *CacheHandler {
 			Database: 0,
 		}),
 	}
+	Cache.LoadDatabaseBets()
 	log.Info("[CACHE] Connected to Redis")
 	return &Cache
 }
@@ -84,7 +86,14 @@ func (c *CacheHandler) RemoveUserConnection(userID string) int {
 }
 
 func (c *CacheHandler) SetBet(bet models.Bet) int {
-	res := c.Redis.Set("b-"+fmt.Sprintf("%d", bet.ID), []byte(bet.Name), time.Hour*6)
+	// Marshal the Bet object to JSON
+	betJSON, err := json.Marshal(bet)
+	if err != nil {
+		return HandleRedisError(err)
+	}
+
+	// Save the JSON string to Redis with a key prefix
+	res := c.Redis.Set("b-"+fmt.Sprintf("%d", bet.ID), betJSON, time.Hour*6)
 	if res != nil {
 		return HandleRedisError(res)
 	}
@@ -92,28 +101,47 @@ func (c *CacheHandler) SetBet(bet models.Bet) int {
 }
 
 func (c *CacheHandler) GetBetById(key string) (*models.Bet, int) {
-	betId, err := c.Redis.Get(key)
+	// Get the JSON string from Redis
+	betJSON, err := c.Redis.Get(key)
 	if err != nil {
 		return nil, HandleRedisError(err)
 	}
-	bet, dbErr := DB.GetBetByBetName(string(betId))
-	if dbErr != -1 {
-		return nil, dbErr
+
+	// Unmarshal the JSON string into a Bet object
+	var bet models.Bet
+	if err := json.Unmarshal([]byte(betJSON), &bet); err != nil {
+		return nil, HandleRedisError(err)
 	}
-	return bet, -1
+
+	return &bet, -1
+}
+
+func (c *CacheHandler) GetBetByIdRaw(key string) (*[]byte, int) {
+	// Get the JSON string from Redis
+	betJSON, err := c.Redis.Get(key)
+	if err != nil {
+		return nil, HandleRedisError(err)
+	}
+	return &betJSON, -1
 }
 
 func (c *CacheHandler) GetAllBet() (*[]models.Bet, int) {
+	// Retrieve all keys from Redis
 	keys, err := c.Redis.Keys()
 	if err != nil {
 		return nil, HandleRedisError(err)
 	}
+	log.Info(keys)
+
 	var bets []models.Bet
 	for _, key := range keys {
 		key := string(key)
-		if strings.HasPrefix(key, "b-") {
+		// Skip keys that don't have the "b-" prefix
+		if !strings.HasPrefix(key, "b-") {
 			continue
 		}
+
+		// Retrieve the bet by ID
 		bet, err := c.GetBetById(key)
 		if err != -1 {
 			return nil, err

@@ -10,6 +10,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/healthcheck"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/joho/godotenv"
 )
@@ -24,15 +25,15 @@ type (
 )
 
 var (
-	DATABASE           string
-	JWT_SECRET         []byte
-	HASH_SECRET        string
-	COOKIE_SECRET      string
-	HOST_REDIS         string
-	PSW_REDIS          string
-	URL_REDIS          string
-	WEBSOCKET_VERSEION byte
-	MASTER_IDS         string
+	DATABASE          string
+	JWT_SECRET        []byte
+	HASH_SECRET       string
+	COOKIE_SECRET     string
+	HOST_REDIS        string
+	PSW_REDIS         string
+	URL_REDIS         string
+	WEBSOCKET_VERSION byte
+	MASTER_IDS        string
 )
 
 func InitEnvVars() {
@@ -52,7 +53,7 @@ func InitEnvVars() {
 	if err != nil {
 		panic(err)
 	}
-	WEBSOCKET_VERSEION = byte(ver)
+	WEBSOCKET_VERSION = byte(ver)
 	MASTER_IDS = os.Getenv("MASTER_IDS")
 	// Check for missing variables and log them
 	missingVars := []string{}
@@ -77,7 +78,7 @@ func InitEnvVars() {
 	if URL_REDIS == "" {
 		missingVars = append(missingVars, "REDIS_URL")
 	}
-	if WEBSOCKET_VERSEION == 0 {
+	if WEBSOCKET_VERSION == 0 {
 		missingVars = append(missingVars, "WEBSOCKET_VERSION")
 	}
 	if MASTER_IDS == "" {
@@ -104,6 +105,8 @@ func AddCacheTime(c *fiber.Ctx, duration time.Duration) {
 }
 
 func ConfigureApp(app *fiber.App) {
+	app.Use(healthcheck.New())
+
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "http://localhost:3001",
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",

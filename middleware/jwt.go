@@ -1,7 +1,10 @@
 package middleware
 
 import (
+	"fmt"
+	"gambler/backend/handlers"
 	"gambler/backend/tools"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,6 +19,10 @@ type Jwt struct {
 }
 
 func Sign(username string) (*Jwt, int) {
+	user, dbErr := handlers.DB.GetUserByUsername(username)
+	if dbErr != -1 {
+		return nil, dbErr
+	}
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS512, jwt.RegisteredClaims{
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(6 * time.Hour)),
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -27,7 +34,7 @@ func Sign(username string) (*Jwt, int) {
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * 7 * time.Hour)),
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
 		NotBefore: jwt.NewNumericDate(time.Now()),
-		Issuer:    "Gambler Backend Service",
+		Issuer:    fmt.Sprintf("%d Version", user.RefreshTokenVersion),
 		Subject:   username,
 	})
 	AccessToken, err := accessToken.SignedString(tools.JWT_SECRET)
@@ -44,7 +51,7 @@ func Sign(username string) (*Jwt, int) {
 	}, -1
 }
 
-func Decode(token string) (jwt.Claims, int) {
+func Decode(token string, isRefresh bool) (jwt.Claims, int) {
 	t, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
 		return tools.JWT_SECRET, nil
 	})
@@ -60,6 +67,34 @@ func Decode(token string) (jwt.Claims, int) {
 			return nil, tools.JWT_INVALID
 		}
 	}
+
+	if isRefresh {
+		issuer, jwtErr := t.Claims.GetIssuer()
+		if jwtErr != nil {
+			return nil, tools.JWT_FAILED_TO_DECODE
+		}
+		if !strings.Contains(issuer, "Version") {
+			return nil, tools.JWT_INVALID
+		}
+		ver, err := strconv.ParseInt(strings.Split(issuer, " ")[0], 10, 0)
+		if err != nil {
+			return nil, tools.JWT_INVALID
+		}
+		username, jwtErr := t.Claims.GetSubject()
+		if jwtErr != nil {
+			return nil, tools.JWT_FAILED_TO_DECODE
+		}
+
+		user, dbErr := handlers.DB.GetUserByUsername(username)
+		if dbErr != -1 {
+			return nil, dbErr
+		}
+
+		if user.RefreshTokenVersion != int(ver) {
+			return nil, tools.JWT_INVALID
+		}
+	}
+
 	return t.Claims.(jwt.Claims), -1
 }
 
@@ -76,7 +111,7 @@ func JwtGuardHandler(c *fiber.Ctx) error {
 			Code:    401,
 		})
 	}
-	claims, err := Decode(token)
+	claims, err := Decode(token, false)
 	if err != -1 {
 		log.Info("Failed to decode token")
 		if err == tools.JWT_FAILED_TO_DECODE {
@@ -125,7 +160,7 @@ func JwtGuardMasterHandler(c *fiber.Ctx) error {
 			Code:    401,
 		})
 	}
-	claims, err := Decode(token)
+	claims, err := Decode(token, false)
 	if err != -1 {
 		log.Info("Failed to decode token")
 		if err == tools.JWT_FAILED_TO_DECODE {

@@ -68,6 +68,10 @@ func (wsh *WebSocketHandler) HandleWebSocketConnection(c *websocket.Conn) {
 		c.Close()
 	}()
 
+	log.Info(fmt.Sprintf("User %s connected to WebSocket", uuid))
+
+	wsh.SendMessageToUser(uuid, []byte{0, tools.WEBSOCKET_VERSION, 0})
+
 	// Main loop to handle incoming WebSocket messages
 	for {
 		_, msg, err := c.ReadMessage()
@@ -75,9 +79,7 @@ func (wsh *WebSocketHandler) HandleWebSocketConnection(c *websocket.Conn) {
 			wsh.sendErrorMessage(c, tools.WS_INVALID_CONN, "Error reading WebSocket message")
 			break
 		}
-		log.Info(fmt.Sprintf("Received message from user %s: %s", uuid, string(msg)))
-
-		// Process the message as needed...
+		log.Info(fmt.Sprintf("Received message from user %s: %x", uuid, msg))
 	}
 }
 

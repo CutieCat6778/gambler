@@ -71,11 +71,24 @@ func GetSelf(c *fiber.Ctx) error {
 			})
 		}
 	}
+
+	activeBets, err := handlers.Cache.GetAllBet()
+	if err != -1 {
+		return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
+			Success: false,
+			Message: "Internal server error",
+			Code:    500,
+		})
+	}
+
 	return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
 		Success: true,
 		Message: "User found",
 		Code:    200,
-		Body:    user,
+		Body: fiber.Map{
+			"user": user,
+			"bets": activeBets,
+		},
 	})
 }
 

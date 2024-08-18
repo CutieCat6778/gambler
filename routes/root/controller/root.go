@@ -8,6 +8,6 @@ import (
 )
 
 func InitRootRoute(c *fiber.App) {
-	group := c.Group("/", middleware.JwtGuardMasterHandler)
+	group := c.Group("/s", middleware.JwtGuardMasterHandler)
 	group.Put("/bets/create", service.CreateBet)
 }
