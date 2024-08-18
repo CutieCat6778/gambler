@@ -13,7 +13,7 @@ type User struct {
 	Balance             int              `json:"balance"`
 	BalanceHistory      []BalanceHistory `json:"balance_history" gorm:"foreignKey:UserID"`
 	UserBet             []UserBet        `json:"user_bet" gorm:"foreignKey:UserID"`
-	RefreshTokenVersion int              `json:"refresh_token_version" gorm:"autoIncrement"`
+	RefreshTokenVersion int              `json:"refresh_token_version"`
 }
 
 type BalanceHistory struct {

@@ -5,6 +5,7 @@ import (
 	"gambler/backend/database/models/customTypes"
 	"gambler/backend/handlers"
 	"gambler/backend/tools"
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/lib/pq"
@@ -69,4 +70,34 @@ func CreateBet(c *fiber.Ctx) error {
 		Code:    201,
 		Body:    bet,
 	})
+}
+
+func AddBalanceToUser(c *fiber.Ctx) error {
+	userId := c.Params("id")
+	amount, pErr := strconv.ParseInt(c.Params("amount"), 10, 64)
+	if pErr != nil {
+		return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
+			Success: false,
+			Message: "Invalid amount",
+			Code:    400,
+		})
+	}
+	user, err := handlers.DB.GetUserByUsername(userId)
+	if err != -1 {
+		if err == tools.DB_REC_NOTFOUND {
+			return c.Status(404).JSON(tools.GlobalErrorHandlerResp{
+				Success: false,
+				Message: "Bet not found",
+				Code:    404,
+			})
+		} else {
+			return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
+				Success: false,
+				Message: "Internal server error",
+				Code:    500,
+			})
+		}
+	}
+	newAmount := user.Balance + int(amount)
+	err = handlers.DB.UpdateUserBalance(user, newAmount)
 }

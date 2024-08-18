@@ -110,6 +110,23 @@ func (h DBHandler) DeleteUserByID(id uint) int {
 
 // BalanceHistory methods
 
+func (h DBHandler) UpdateUserBalance(amount int, user models.User, reason: string) int {
+	user.Balance += amount
+	res := h.DB.Save(&user)
+	if res.Error != nil {
+		return dbHandleError(res.Error)
+	}
+	err := h.AddBalanceHistory(models.BalanceHistory{
+		UserID: user.ID,
+		Amount: amount,
+		Reason: reason,
+	})
+	if err != -1 {
+		return err
+	}
+	return -1
+}
+
 func (h DBHandler) CreateBalanceHistory(balance models.BalanceHistory) int {
 	res := h.DB.Create(&balance)
 	if res.Error != nil {
