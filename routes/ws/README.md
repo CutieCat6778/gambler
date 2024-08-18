@@ -10,6 +10,13 @@
 
 **1: Message**
 
+**2: Bet**
+> [type_bet, bet_id, option, amount]
+
+`type_bet` - 0: Bet, 1: Cancel bet
+
+`option` - index of the option
+
 **254: Error**
 
 **256: Disconnection**
