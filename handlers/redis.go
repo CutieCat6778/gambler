@@ -90,8 +90,12 @@ func (c *CacheHandler) RemoveUserConnection(userID string) int {
 }
 
 func (c *CacheHandler) SetBet(bet models.Bet) int {
+	betData, err := json.Marshal(bet)
+	if err != nil {
+		return HandleRedisError(err)
+	}
 	// Save the JSON string to Redis with a key prefix
-	res := c.Redis.Conn().Set(c.Context, "b-"+fmt.Sprintf("%d", bet.ID), bet, time.Hour*6).Err()
+	res := c.Redis.Conn().Set(c.Context, "b-"+fmt.Sprintf("%d", bet.ID), betData, time.Hour*6).Err()
 	if res != nil {
 		log.Error(res)
 		return HandleRedisError(res)
@@ -158,6 +162,19 @@ func (c *CacheHandler) GetAllBet() (*[]models.Bet, int) {
 	return &bets, -1
 }
 
+func (c *CacheHandler) UpdateBet(betID uint) int {
+	bet, err := DB.GetBetByID(betID)
+	if err != -1 {
+		return err
+	}
+
+	err = c.SetBet(*bet)
+	if err != -1 {
+		return err
+	}
+	return -1
+}
+
 func (c *CacheHandler) LoadDatabaseBets() int {
 	bets, err := DB.GetAllActiveBets()
 	if err != -1 {
@@ -165,6 +182,7 @@ func (c *CacheHandler) LoadDatabaseBets() int {
 	}
 	for _, bet := range *bets {
 		log.Info("Loaded bet", bet.ID)
+		log.Info(fmt.Sprintf("%v", bet))
 		err := c.SetBet(bet)
 		if err != -1 {
 			log.Error(err)

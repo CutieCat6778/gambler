@@ -26,7 +26,7 @@ func (b Bet) UnmarshalBinary(data []byte) error {
 
 type UserBet struct {
 	CustomModel
-	UserID    string  `json:"user"`
+	UserID    uint    `json:"user"`
 	BetID     uint    `json:"bet_id"` // Foreign key field
 	Amount    float64 `json:"amount" gorm:"not null"`
 	BetOption string  `json:"bet_option"`
