@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"gambler/backend/calculator"
+	"gambler/backend/database/models"
+	"gambler/backend/database/models/customTypes"
+	"gambler/backend/handlers"
 	"gambler/backend/tools"
 	"math"
 
@@ -14,12 +17,12 @@ func HandleMessageEvent(wsh *WebSocketHandler, uuid string, event int, data []by
 	var res []byte
 	var err int
 	switch event {
-	case tools.BET:
+	case tools.BET_ACTION:
 		// Handle bet event
-		res, err = betEventHandler(event, data)
+		res, err = betEventHandler(data, uuid)
 	case tools.BET_INFO:
 		// Handle bet info event
-		res, err = betInfoEventHandler(event, data)
+		res, err = betInfoEventHandler(data)
 	default:
 		res, err = nil, tools.WS_COMMAND_NOTFOUND
 	}
@@ -35,11 +38,109 @@ func HandleMessageEvent(wsh *WebSocketHandler, uuid string, event int, data []by
 	}
 }
 
-func betEventHandler(event int, data []byte) ([]byte, int) {
-	return []byte{}, -1
+func betEventHandler(data []byte, uuid string) ([]byte, int) {
+	betType := int(data[0]) // 0: Bet, 1: Cancel
+	betID := int(data[1])
+	input := int(data[2])
+	amountInt := int(data[3])
+	amountFrac := int(data[4])
+	amount := combineToFloat64(amountInt, amountFrac)
+
+	user, err := handlers.DB.GetUserByUsername(uuid)
+	if err != -1 {
+		return []byte{}, err
+	}
+
+	if user.Balance < amount {
+		return []byte{}, tools.BET_INSUFFICIENT_BALANCE
+	}
+
+	bet, err := handlers.Cache.GetBetById(fmt.Sprintf("b-%d", betID))
+	if err != -1 {
+		return []byte{}, err
+	}
+
+	if input >= len(bet.BetOptions) || input < 0 {
+		return []byte{}, tools.BET_OPTION_NOT_FOUND
+	}
+
+	option := bet.BetOptions[input]
+
+	if betType == 0 {
+		err := _handlePlaceBet(bet, option, amount, user)
+		if err != -1 {
+			return []byte{}, err
+		}
+	} else if betType == 1 {
+		err := _handleCancelBet(bet, option, user)
+		if err != -1 {
+			return []byte{}, err
+		}
+	}
+
+	return []byte{tools.BET_ACTION_RES, tools.WEBSOCKET_VERSION, 1}, -1
 }
 
-func betInfoEventHandler(event int, data []byte) ([]byte, int) {
+func _handlePlaceBet(bet *models.Bet, input string, amount float64, user *models.User) int {
+	if bet.Status != customTypes.Open {
+		return tools.BET_NOT_ACTIVE
+	}
+
+	userBet := models.UserBet{
+		UserID:    user.ID,
+		BetID:     bet.ID,
+		Amount:    amount,
+		BetOption: input,
+	}
+
+	err := handlers.DB.PlaceBet(userBet)
+	if err != -1 {
+		return err
+	}
+
+	// Update user balance
+	err = handlers.DB.UpdateUserBalance(-amount, *user, fmt.Sprintf("Bet on: %s", bet.Name))
+	if err != -1 {
+		return err
+	}
+
+	err = handlers.Cache.UpdateBet(bet.ID)
+	if err != -1 {
+		return err
+	}
+
+	return -1
+}
+
+func _handleCancelBet(bet *models.Bet, input string, user *models.User) int {
+	if bet.Status != customTypes.Open {
+		return tools.BET_NOT_ACTIVE
+	}
+
+	userBet, err := handlers.DB.GetUserBetByBetID(bet.ID, user.Username)
+	if err != -1 {
+		return err
+	}
+	err = handlers.DB.CancelBet(*userBet, *user)
+	if err != -1 {
+		return err
+	}
+
+	// Update user balance
+	err = handlers.DB.UpdateUserBalance(userBet.Amount, *user, fmt.Sprintf("Cancel bet on: %s", bet.Name))
+	if err != -1 {
+		return err
+	}
+
+	err = handlers.Cache.UpdateBet(bet.ID)
+	if err != -1 {
+		return err
+	}
+
+	return -1
+}
+
+func betInfoEventHandler(data []byte) ([]byte, int) {
 	var betLog []calculator.BetLog
 	betID := data[0]
 	input := int(data[1])

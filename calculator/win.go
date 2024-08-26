@@ -53,7 +53,7 @@ func CalculateWinningAmount(betID string, inputIndex int, betLog []BetLog) (floa
 	otherWin := 0.0
 	for _, log := range betLog {
 		logger.Info(fmt.Sprintf("%v", log))
-		if log.BetOption == input {
+		if log.BetOption != input {
 			sumBet += log.BetAmount
 		} else {
 			amount += log.BetAmount
@@ -72,7 +72,12 @@ func CalculateWinningAmount(betID string, inputIndex int, betLog []BetLog) (floa
 		return 0, -1
 	}
 
-	winAmount := sumBet * (amount / otherWin)
+	var winAmount float64
+	if otherWin == 0.0 {
+		winAmount = sumBet
+	} else {
+		winAmount = sumBet * (amount / otherWin)
+	}
 
 	winPercentage := math.Trunc(winAmount/amount*100) / 100
 

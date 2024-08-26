@@ -21,7 +21,7 @@ func InitDatabase() *gorm.DB {
 			LogLevel:                  logger.Info,
 			IgnoreRecordNotFoundError: true,
 			ParameterizedQueries:      true,
-			Colorful:                  false,
+			Colorful:                  true,
 		},
 	)
 

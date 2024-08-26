@@ -2,11 +2,13 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"gambler/backend/database"
 	"gambler/backend/database/models"
 	"gambler/backend/database/models/customTypes"
 	"gambler/backend/tools"
 	"math/rand"
+	"runtime"
 
 	"github.com/gofiber/fiber/v2/log"
 	"gorm.io/gorm"
@@ -163,7 +165,7 @@ func (h DBHandler) AddBalanceHistory(balance models.BalanceHistory, userId strin
 
 // Bet methods
 
-func (h DBHandler) CreateBet(bet models.Bet, userId string) int {
+func (h DBHandler) CreateBet(bet models.Bet, username string) int {
 	tx := h.DB.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -178,6 +180,13 @@ func (h DBHandler) CreateBet(bet models.Bet, userId string) int {
 		return dbHandleError(err)
 	}
 
+	// Get the user ID
+	user, err := h.GetUserByUsername(username)
+	if err != -1 {
+		tx.Rollback()
+		return err
+	}
+
 	// Ensure the user ID is populated
 	if bet.ID == 0 {
 		tx.Rollback()
@@ -187,7 +196,7 @@ func (h DBHandler) CreateBet(bet models.Bet, userId string) int {
 
 	// Create the initial balance history entry
 	initialBet := models.UserBet{
-		UserID:    userId,
+		UserID:    user.ID,
 		BetID:     bet.ID,
 		Amount:    1,
 		BetOption: bet.BetOptions[rand.Intn(len(bet.BetOptions))],
@@ -210,7 +219,7 @@ func (h DBHandler) CreateBet(bet models.Bet, userId string) int {
 
 func (h DBHandler) FindBet(betID int) (*models.Bet, int) {
 	var bet models.Bet
-	res := h.DB.First(&bet, betID)
+	res := h.DB.Preload("UserBets").First(&bet, betID)
 	if res.Error != nil {
 		return nil, dbHandleError(res.Error)
 	}
@@ -249,18 +258,37 @@ func (h DBHandler) GetUserBet(username string) (*[]models.UserBet, int) {
 	return &bets, -1
 }
 
+func (h DBHandler) GetUserBetByBetID(betID uint, username string) (*models.UserBet, int) {
+	var bet models.UserBet
+	res := h.DB.Preload("UserBets").Where("user_id = ? AND bet_id = ?", username, betID).First(&bet)
+	if res.Error != nil {
+		return nil, dbHandleError(res.Error)
+	}
+
+	return &bet, -1
+}
+
 func (h DBHandler) GetBetsByBetID(betID uint) (*[]models.UserBet, int) {
 	var bets []models.UserBet
-	res := h.DB.Where("bet_id = ?", betID).Find(&bets)
+	res := h.DB.Preload("UserBets").Where("bet_id = ?", betID).Find(&bets)
 	if res.Error != nil {
 		return nil, dbHandleError(res.Error)
 	}
 	return &bets, -1
 }
 
+func (h DBHandler) GetBetByID(id uint) (*models.Bet, int) {
+	var bet models.Bet
+	res := h.DB.Preload("UserBets").First(&bet, id)
+	if res.Error != nil {
+		return nil, dbHandleError(res.Error)
+	}
+	return &bet, -1
+}
+
 func (h DBHandler) GetBetByBetName(name string) (*models.Bet, int) {
 	var bet models.Bet
-	res := h.DB.Where("name = ?", name).First(&bet)
+	res := h.DB.Preload("UserBets").Where("name = ?", name).First(&bet)
 	if res.Error != nil {
 		return nil, dbHandleError(res.Error)
 	}
@@ -275,18 +303,43 @@ func (h DBHandler) PlaceBet(userBet models.UserBet) int {
 	return -1
 }
 
+func (h DBHandler) CancelBet(userBet models.UserBet, user models.User) int {
+	res := h.DB.Delete(&models.UserBet{}, userBet.ID)
+	if res.Error != nil {
+		return dbHandleError(res.Error)
+	}
+
+	// Update User Balance
+	err := h.UpdateUserBalance(userBet.Amount, user, fmt.Sprintf("Bet %d cancelled", userBet.BetID))
+	if err != -1 {
+		return err
+	}
+
+	return -1
+}
+
 func (h DBHandler) GetAllActiveBets() (*[]models.Bet, int) {
 	var bets []models.Bet
-	res := h.DB.Where("status = ?", customTypes.Open).Find(&bets)
+
+	// Use Preload to also load associated UserBets for each Bet
+	res := h.DB.Where("status = ?", customTypes.Open).
+		Preload("UserBets"). // Preload the UserBets relation
+		Find(&bets)
+
 	if res.Error != nil {
 		return nil, dbHandleError(res.Error)
 	}
+
 	return &bets, -1
 }
 
 // Helper functions
 
 func dbHandleError(e error) int {
+	_, file, line, ok := runtime.Caller(1)
+	if ok {
+		log.Info(fmt.Sprintf("Called from %s, line %d", file, line))
+	}
 	var res int
 	if errors.Is(e, gorm.ErrDuplicatedKey) {
 		res = tools.DB_DUP_KEY

@@ -11,20 +11,15 @@
 **1: Message**
 
 **2: Bet**
-> [type_bet, bet_id, option, amount]
+> [type_bet, bet_id, input_index, amount_int, amount_frac]
 
 `type_bet` - 0: Bet, 1: Cancel bet
 
 `option` - index of the option
 
 **3: GetBetWinRate**
-> [bet_id, amount_a, amount_b, input]
+> [bet_id, input_index, bet_log]
 
-`amount_a` - first value after comma
-
-`amount_b` - second value after comma
-
-`input` - input value
 
 **254: Error**
 
