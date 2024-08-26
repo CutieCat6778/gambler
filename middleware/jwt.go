@@ -115,7 +115,8 @@ func JwtGuardHandler(c *fiber.Ctx) error {
 	if err != -1 {
 		log.Info("Failed to decode token")
 		if err == tools.JWT_FAILED_TO_DECODE {
-			return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
+			log.Info(token)
+			return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
 				Success: false,
 				Message: "Failed to decode token",
 				Code:    401,

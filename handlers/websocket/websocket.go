@@ -1,8 +1,9 @@
-package handlers
+package websocket
 
 import (
 	"encoding/json"
 	"fmt"
+	"gambler/backend/handlers"
 	"gambler/backend/tools"
 
 	"github.com/gofiber/contrib/websocket"
@@ -10,7 +11,7 @@ import (
 )
 
 type WebSocketHandler struct {
-	Cache *CacheHandler
+	Cache *handlers.CacheHandler
 }
 
 var (
@@ -19,7 +20,7 @@ var (
 )
 
 // NewWebSocketHandler initializes a new WebSocketHandler
-func NewWebSocketHandler(cache *CacheHandler) *WebSocketHandler {
+func NewWebSocketHandler(cache *handlers.CacheHandler) *WebSocketHandler {
 	WebSocket = WebSocketHandler{
 		Cache: cache,
 	}
@@ -34,14 +35,18 @@ type ErrorMessage struct {
 }
 
 // sendErrorMessage sends an error message to the WebSocket client
-func (wsh *WebSocketHandler) sendErrorMessage(c *websocket.Conn, code int, errMessage string) {
+func (wsh *WebSocketHandler) SendErrorMessage(uuid string, code int, errMessage string) {
+	log.Info("Sending error message to user:", uuid, code, errMessage)
 	errorMsg := ErrorMessage{
 		Type:    "error",
 		Code:    code,
 		Message: errMessage,
 	}
 	msg, _ := json.Marshal(errorMsg)
-	c.WriteMessage(websocket.TextMessage, msg)
+	msgAsByte := []byte(msg)
+	headers := []byte{tools.WS_ERR, tools.WEBSOCKET_VERSION}
+	headers = append(headers, msgAsByte...)
+	wsh.SendMessageToUser(uuid, headers)
 }
 
 // HandleWebSocketConnection manages the WebSocket connection for a specific user
@@ -51,8 +56,7 @@ func (wsh *WebSocketHandler) HandleWebSocketConnection(c *websocket.Conn) {
 
 	// Store the connection in Redis
 	if errCode := wsh.Cache.StoreUserConnection(uuid, uuid); errCode != -1 {
-		wsh.sendErrorMessage(c, errCode, "Failed to store WebSocket connection in Redis")
-		c.Close()
+		wsh.SendErrorMessage(uuid, errCode, "Failed to store WebSocket connection in Redis")
 		return
 	}
 
@@ -76,10 +80,11 @@ func (wsh *WebSocketHandler) HandleWebSocketConnection(c *websocket.Conn) {
 	for {
 		_, msg, err := c.ReadMessage()
 		if err != nil {
-			wsh.sendErrorMessage(c, tools.WS_INVALID_CONN, "Error reading WebSocket message")
-			break
+			wsh.SendErrorMessage(uuid, tools.WS_INVALID_CONN, "Error reading WebSocket message")
+			continue
 		}
-		log.Info(fmt.Sprintf("Received message from user %s: %x", uuid, msg))
+		log.Info(fmt.Sprintf("Received message from user %s: %v", uuid, msg))
+		HandleMessageEvent(wsh, uuid, int(msg[0]), msg[2:])
 	}
 }
 

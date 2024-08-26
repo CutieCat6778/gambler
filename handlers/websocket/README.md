@@ -17,6 +17,15 @@
 
 `option` - index of the option
 
+**3: GetBetWinRate**
+> [bet_id, amount_a, amount_b, input]
+
+`amount_a` - first value after comma
+
+`amount_b` - second value after comma
+
+`input` - input value
+
 **254: Error**
 
 **256: Disconnection**

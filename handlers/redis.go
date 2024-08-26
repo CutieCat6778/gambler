@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"gambler/backend/database/models"
@@ -12,11 +13,13 @@ import (
 	"github.com/gofiber/fiber/v2/log"
 	"github.com/gofiber/fiber/v2/middleware/cache"
 	"github.com/gofiber/storage/redis/v3"
+	r "github.com/redis/go-redis/v9"
 )
 
 type (
 	CacheHandler struct {
-		Redis *redis.Storage
+		Redis   *redis.Storage
+		Context context.Context
 	}
 	CurrentGame struct {
 		GameId string
@@ -39,6 +42,7 @@ func NewCache(app *fiber.App) *CacheHandler {
 			Password: tools.PSW_REDIS,
 			Database: 0,
 		}),
+		Context: context.Background(),
 	}
 	Cache.LoadDatabaseBets()
 	log.Info("[CACHE] Connected to Redis")
@@ -86,43 +90,43 @@ func (c *CacheHandler) RemoveUserConnection(userID string) int {
 }
 
 func (c *CacheHandler) SetBet(bet models.Bet) int {
-	// Marshal the Bet object to JSON
-	betJSON, err := json.Marshal(bet)
-	if err != nil {
-		return HandleRedisError(err)
-	}
-
 	// Save the JSON string to Redis with a key prefix
-	res := c.Redis.Set("b-"+fmt.Sprintf("%d", bet.ID), betJSON, time.Hour*6)
+	res := c.Redis.Conn().Set(c.Context, "b-"+fmt.Sprintf("%d", bet.ID), bet, time.Hour*6).Err()
 	if res != nil {
+		log.Error(res)
 		return HandleRedisError(res)
 	}
 	return -1
 }
 
 func (c *CacheHandler) GetBetById(key string) (*models.Bet, int) {
+	var bet models.Bet
+
 	// Get the JSON string from Redis
-	betJSON, err := c.Redis.Get(key)
+	res := c.Redis.Conn().Get(c.Context, key)
+	err := res.Err()
 	if err != nil {
+		log.Error(err, key)
+		if err == r.Nil {
+			return nil, tools.RD_KEY_NOT_FOUND
+		}
 		return nil, HandleRedisError(err)
 	}
 
-	// Unmarshal the JSON string into a Bet object
-	var bet models.Bet
-	if err := json.Unmarshal([]byte(betJSON), &bet); err != nil {
+	// Unmarshal the JSON string into the models.Bet struct
+	data, err := res.Bytes()
+	if err != nil {
+		log.Error("Failed to get bytes from Redis:", err)
+		return nil, HandleRedisError(err)
+	}
+
+	err = json.Unmarshal(data, &bet)
+	if err != nil {
+		log.Error("Failed to unmarshal JSON into Bet struct:", err)
 		return nil, HandleRedisError(err)
 	}
 
 	return &bet, -1
-}
-
-func (c *CacheHandler) GetBetByIdRaw(key string) (*[]byte, int) {
-	// Get the JSON string from Redis
-	betJSON, err := c.Redis.Get(key)
-	if err != nil {
-		return nil, HandleRedisError(err)
-	}
-	return &betJSON, -1
 }
 
 func (c *CacheHandler) GetAllBet() (*[]models.Bet, int) {
@@ -133,17 +137,20 @@ func (c *CacheHandler) GetAllBet() (*[]models.Bet, int) {
 	}
 	log.Info(keys)
 
-	var bets []models.Bet
+	bets := []models.Bet{}
 	for _, key := range keys {
 		key := string(key)
 		// Skip keys that don't have the "b-" prefix
 		if !strings.HasPrefix(key, "b-") {
 			continue
 		}
-
+		log.Info(key)
 		// Retrieve the bet by ID
 		bet, err := c.GetBetById(key)
 		if err != -1 {
+			if err == tools.RD_KEY_NOT_FOUND {
+				continue
+			}
 			return nil, err
 		}
 		bets = append(bets, *bet)
@@ -157,11 +164,20 @@ func (c *CacheHandler) LoadDatabaseBets() int {
 		return err
 	}
 	for _, bet := range *bets {
-		c.SetBet(bet)
+		log.Info("Loaded bet", bet.ID)
+		err := c.SetBet(bet)
+		if err != -1 {
+			log.Error(err)
+			return err
+		}
 	}
 	return -1
 }
 
 func HandleRedisError(e error) int {
-	return tools.RD_UNKNOWN
+	if e == r.Nil {
+		return tools.RD_KEY_NOT_FOUND
+	} else {
+		return tools.RD_UNKNOWN
+	}
 }

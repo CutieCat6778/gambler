@@ -1,14 +1,14 @@
 package models
 
 import (
+	"encoding/json"
 	"gambler/backend/database/models/customTypes"
 
 	"github.com/lib/pq"
-	"gorm.io/gorm"
 )
 
 type Bet struct {
-	gorm.Model
+	CustomModel
 	Name        string                `json:"name" gorm:"unique"`
 	Description string                `json:"description"`
 	UserBets    []UserBet             `json:"user_bets" gorm:"foreignKey:BetID"`
@@ -16,10 +16,18 @@ type Bet struct {
 	Status      customTypes.BetStatus `json:"status"`
 }
 
+func (b Bet) MarshalBinary() ([]byte, error) {
+	return json.Marshal(b)
+}
+
+func (b Bet) UnmarshalBinary(data []byte) error {
+	return json.Unmarshal(data, b)
+}
+
 type UserBet struct {
-	gorm.Model
-	UserID    string `json:"user"`
-	BetID     uint   `json:"bet_id"` // Foreign key field
-	Amount    int    `json:"amount" gorm:"not null"`
-	BetOption string `json:"bet_option"`
+	CustomModel
+	UserID    string  `json:"user"`
+	BetID     uint    `json:"bet_id"` // Foreign key field
+	Amount    float64 `json:"amount" gorm:"not null"`
+	BetOption string  `json:"bet_option"`
 }

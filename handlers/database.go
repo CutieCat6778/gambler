@@ -6,6 +6,7 @@ import (
 	"gambler/backend/database/models"
 	"gambler/backend/database/models/customTypes"
 	"gambler/backend/tools"
+	"math/rand"
 
 	"github.com/gofiber/fiber/v2/log"
 	"gorm.io/gorm"
@@ -110,7 +111,7 @@ func (h DBHandler) DeleteUserByID(id uint) int {
 
 // BalanceHistory methods
 
-func (h DBHandler) UpdateUserBalance(amount int, user models.User, reason: string) int {
+func (h DBHandler) UpdateUserBalance(amount float64, user models.User, reason string) int {
 	user.Balance += amount
 	res := h.DB.Save(&user)
 	if res.Error != nil {
@@ -120,7 +121,7 @@ func (h DBHandler) UpdateUserBalance(amount int, user models.User, reason: strin
 		UserID: user.ID,
 		Amount: amount,
 		Reason: reason,
-	})
+	}, user.Username)
 	if err != -1 {
 		return err
 	}
@@ -162,11 +163,48 @@ func (h DBHandler) AddBalanceHistory(balance models.BalanceHistory, userId strin
 
 // Bet methods
 
-func (h DBHandler) CreateBet(bet models.Bet) int {
-	res := h.DB.Create(&bet)
-	if res.Error != nil {
-		return dbHandleError(res.Error)
+func (h DBHandler) CreateBet(bet models.Bet, userId string) int {
+	tx := h.DB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Create the user
+	if err := tx.Create(&bet).Error; err != nil {
+		tx.Rollback()
+		log.Errorf("Error creating user: %v", err)
+		return dbHandleError(err)
 	}
+
+	// Ensure the user ID is populated
+	if bet.ID == 0 {
+		tx.Rollback()
+		log.Error("Bet ID not populated after creation")
+		return dbHandleError(errors.New("Bet ID not populated after creation"))
+	}
+
+	// Create the initial balance history entry
+	initialBet := models.UserBet{
+		UserID:    userId,
+		BetID:     bet.ID,
+		Amount:    1,
+		BetOption: bet.BetOptions[rand.Intn(len(bet.BetOptions))],
+	}
+
+	if err := tx.Create(&initialBet).Error; err != nil {
+		tx.Rollback()
+		log.Errorf("Error creating balance history: %v", err)
+		return dbHandleError(err)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		log.Errorf("Error committing transaction: %v", err)
+		return dbHandleError(err)
+	}
+
 	return -1
 }
 
@@ -229,6 +267,14 @@ func (h DBHandler) GetBetByBetName(name string) (*models.Bet, int) {
 	return &bet, -1
 }
 
+func (h DBHandler) PlaceBet(userBet models.UserBet) int {
+	res := h.DB.Create(&userBet)
+	if res.Error != nil {
+		return dbHandleError(res.Error)
+	}
+	return -1
+}
+
 func (h DBHandler) GetAllActiveBets() (*[]models.Bet, int) {
 	var bets []models.Bet
 	res := h.DB.Where("status = ?", customTypes.Open).Find(&bets)
@@ -247,7 +293,7 @@ func dbHandleError(e error) int {
 	} else if errors.Is(e, gorm.ErrRecordNotFound) {
 		res = tools.DB_REC_NOTFOUND
 	} else {
-		res = tools.DB_UNKOWN_ERR
+		res = tools.DB_UNKNOWN_ERR
 	}
 	log.Info("DB Error: ", e.Error(), res)
 	return res
