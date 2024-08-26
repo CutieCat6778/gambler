@@ -2,6 +2,7 @@ package main
 
 import (
 	"gambler/backend/handlers"
+	"gambler/backend/handlers/websocket"
 	authController "gambler/backend/routes/auth/controller"
 	betsController "gambler/backend/routes/bets/controller"
 	rootController "gambler/backend/routes/root/controller"
@@ -40,7 +41,7 @@ func main() {
 	_ = handlers.NewDB()
 	_ = handlers.NewValidator()
 	cache := handlers.NewCache(app)
-	_ = handlers.NewWebSocketHandler(cache)
+	_ = websocket.NewWebSocketHandler(cache)
 
 	log.SetLevel(log.LevelInfo)
 
