@@ -14,8 +14,10 @@ import (
 )
 
 type Jwt struct {
-	AccessToken  string `json:"accessToken"`
-	RefreshToken string `json:"refreshToken"`
+	AccessToken         string    `json:"accessToken"`
+	RefreshToken        string    `json:"refreshToken"`
+	AccessTokenExpDate  time.Time `json:"accessTokenExpDate"`
+	RefreshTokenExpDate time.Time `json:"refreshTokenExpDate"`
 }
 
 func Sign(username string) (*Jwt, int) {
@@ -23,15 +25,17 @@ func Sign(username string) (*Jwt, int) {
 	if dbErr != -1 {
 		return nil, dbErr
 	}
+	accessTokenExpDate := time.Minute * 15
+	refreshTokenExpDate := 24 * 7 * time.Hour
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS512, jwt.RegisteredClaims{
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(6 * time.Hour)),
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(accessTokenExpDate)),
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
 		NotBefore: jwt.NewNumericDate(time.Now()),
 		Issuer:    "Gambler Backend Service",
 		Subject:   username,
 	})
 	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS512, jwt.RegisteredClaims{
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * 7 * time.Hour)),
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(refreshTokenExpDate)),
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
 		NotBefore: jwt.NewNumericDate(time.Now()),
 		Issuer:    fmt.Sprintf("%d Version", user.RefreshTokenVersion),
@@ -46,8 +50,10 @@ func Sign(username string) (*Jwt, int) {
 		return nil, tools.JWT_FAILED_TO_SIGN
 	}
 	return &Jwt{
-		AccessToken,
-		RefreshToken,
+		AccessToken:         AccessToken,
+		RefreshToken:        RefreshToken,
+		AccessTokenExpDate:  time.Now().Add(accessTokenExpDate),
+		RefreshTokenExpDate: time.Now().Add(refreshTokenExpDate),
 	}, -1
 }
 
@@ -56,6 +62,7 @@ func Decode(token string, isRefresh bool) (jwt.Claims, int) {
 		return tools.JWT_SECRET, nil
 	})
 	if err != nil {
+		log.Info(err)
 		return nil, tools.JWT_FAILED_TO_DECODE
 	}
 	if !t.Valid {
@@ -105,21 +112,21 @@ func JwtGuardHandler(c *fiber.Ctx) error {
 	token := tools.HeaderParser(c)
 	if token == "" {
 		log.Info("Unauthorized, no authorization protocol used")
-		return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
+		return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
 			Success: false,
 			Message: "Unauthorized, no authorization protocol used",
-			Code:    401,
+			Code:    400,
 		})
 	}
 	claims, err := Decode(token, false)
 	if err != -1 {
-		log.Info("Failed to decode token")
+		log.Info("Failed to decode token ", err)
 		if err == tools.JWT_FAILED_TO_DECODE {
 			log.Info(token)
 			return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
 				Success: false,
 				Message: "Failed to decode token",
-				Code:    401,
+				Code:    400,
 			})
 		} else if err == tools.JWT_INVALID {
 			return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
@@ -128,10 +135,10 @@ func JwtGuardHandler(c *fiber.Ctx) error {
 				Code:    401,
 			})
 		} else if err == tools.JWT_EXPIRED {
-			return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
+			return c.Status(408).JSON(tools.GlobalErrorHandlerResp{
 				Success: false,
 				Message: "Token expired",
-				Code:    401,
+				Code:    408,
 			})
 		} else {
 			return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
@@ -155,20 +162,20 @@ func JwtGuardMasterHandler(c *fiber.Ctx) error {
 	token := tools.HeaderParser(c)
 	if token == "" {
 		log.Info("Unauthorized, no authorization protocol used")
-		return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
+		return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
 			Success: false,
 			Message: "Unauthorized, no authorization protocol used",
-			Code:    401,
+			Code:    400,
 		})
 	}
 	claims, err := Decode(token, false)
 	if err != -1 {
 		log.Info("Failed to decode token")
 		if err == tools.JWT_FAILED_TO_DECODE {
-			return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
+			return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
 				Success: false,
 				Message: "Failed to decode token",
-				Code:    401,
+				Code:    400,
 			})
 		} else if err == tools.JWT_INVALID {
 			return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
@@ -177,10 +184,10 @@ func JwtGuardMasterHandler(c *fiber.Ctx) error {
 				Code:    401,
 			})
 		} else if err == tools.JWT_EXPIRED {
-			return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
+			return c.Status(408).JSON(tools.GlobalErrorHandlerResp{
 				Success: false,
 				Message: "Token expired",
-				Code:    401,
+				Code:    408,
 			})
 		} else {
 			return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
