@@ -80,8 +80,9 @@ func (wsh *WebSocketHandler) HandleWebSocketConnection(c *websocket.Conn) {
 	for {
 		_, msg, err := c.ReadMessage()
 		if err != nil {
+			log.Info(err)
 			wsh.SendErrorMessage(uuid, tools.WS_INVALID_CONN, "Error reading WebSocket message")
-			continue
+			break
 		}
 		log.Info(fmt.Sprintf("Received message from user %s: %v", uuid, msg))
 		HandleMessageEvent(wsh, uuid, int(msg[0]), msg[2:])
