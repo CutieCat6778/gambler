@@ -10,4 +10,5 @@ import (
 func InitBetsRoute(c *fiber.App) {
 	group := c.Group("/bets", middleware.JwtGuardHandler)
 	group.Get("/", service.GetAllActiveBets)
+	group.Post("/create", service.CreateBet)
 }

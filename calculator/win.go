@@ -8,6 +8,7 @@ import (
 	"gambler/backend/tools"
 	"math"
 
+	"github.com/gofiber/fiber/v2/log"
 	logger "github.com/gofiber/fiber/v2/log"
 )
 
@@ -61,6 +62,7 @@ func CalculateWinningAmount(betID string, inputIndex int, betLog []BetLog) (floa
 	}
 
 	for i, bet := range totalBet {
+		log.Info(bet)
 		if i != input {
 			sumBet += bet
 		} else {
