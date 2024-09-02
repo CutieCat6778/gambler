@@ -7,7 +7,6 @@ import (
 	"gambler/backend/database/models"
 	"gambler/backend/database/models/customTypes"
 	"gambler/backend/tools"
-	"math/rand"
 	"runtime"
 
 	"github.com/gofiber/fiber/v2/log"
@@ -165,7 +164,7 @@ func (h DBHandler) AddBalanceHistory(balance models.BalanceHistory, userId strin
 
 // Bet methods
 
-func (h DBHandler) CreateBet(bet models.Bet, username string) int {
+func (h DBHandler) CreateBet(bet models.Bet, username string, betOption string, amount float64) int {
 	tx := h.DB.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -198,8 +197,8 @@ func (h DBHandler) CreateBet(bet models.Bet, username string) int {
 	initialBet := models.UserBet{
 		UserID:    user.ID,
 		BetID:     bet.ID,
-		Amount:    1,
-		BetOption: bet.BetOptions[rand.Intn(len(bet.BetOptions))],
+		Amount:    amount,
+		BetOption: betOption,
 	}
 
 	if err := tx.Create(&initialBet).Error; err != nil {
@@ -208,10 +207,34 @@ func (h DBHandler) CreateBet(bet models.Bet, username string) int {
 		return dbHandleError(err)
 	}
 
+	user.Balance -= amount
+	res := tx.Save(&user)
+	if res.Error != nil {
+		tx.Rollback()
+		log.Errorf("Error updating user balance: %v", res.Error)
+		return dbHandleError(res.Error)
+	}
+
+	balance := models.BalanceHistory{
+		UserID: user.ID,
+		Amount: amount,
+		Reason: fmt.Sprintf("Bet on: %s", bet.Name),
+	}
+
+	bRes := tx.Model(&user).Association("BalanceHistory").Append(&balance)
+	if bRes != nil {
+		return dbHandleError(bRes)
+	}
+
 	// Commit the transaction
 	if err := tx.Commit().Error; err != nil {
 		log.Errorf("Error committing transaction: %v", err)
 		return dbHandleError(err)
+	}
+
+	err = Cache.UpdateBet(bet.ID)
+	if err != -1 {
+		return err
 	}
 
 	return -1
@@ -219,7 +242,7 @@ func (h DBHandler) CreateBet(bet models.Bet, username string) int {
 
 func (h DBHandler) FindBet(betID int) (*models.Bet, int) {
 	var bet models.Bet
-	res := h.DB.Preload("UserBets").First(&bet, betID)
+	res := h.DB.Preload("UserBets").Where("deleted_at IS NULL").First(&bet, betID)
 	if res.Error != nil {
 		return nil, dbHandleError(res.Error)
 	}
@@ -258,9 +281,19 @@ func (h DBHandler) GetUserBet(username string) (*[]models.UserBet, int) {
 	return &bets, -1
 }
 
+func (h DBHandler) GetUserBetByID(id uint) (*models.UserBet, int) {
+	log.Info(id)
+	var bet models.UserBet
+	res := h.DB.First(&bet, id)
+	if res.Error != nil {
+		return nil, dbHandleError(res.Error)
+	}
+	return &bet, -1
+}
+
 func (h DBHandler) GetUserBetByBetID(betID uint, username string) (*models.UserBet, int) {
 	var bet models.UserBet
-	res := h.DB.Preload("UserBets").Where("user_id = ? AND bet_id = ?", username, betID).First(&bet)
+	res := h.DB.Preload("UserBets").Where("user_id = ? AND bet_id = ? AND deleted_at IS NULL", username, betID).First(&bet)
 	if res.Error != nil {
 		return nil, dbHandleError(res.Error)
 	}
@@ -270,7 +303,7 @@ func (h DBHandler) GetUserBetByBetID(betID uint, username string) (*models.UserB
 
 func (h DBHandler) GetBetsByBetID(betID uint) (*[]models.UserBet, int) {
 	var bets []models.UserBet
-	res := h.DB.Preload("UserBets").Where("bet_id = ?", betID).Find(&bets)
+	res := h.DB.Preload("UserBets").Where("bet_id = ? AND deleted_at IS NULL", betID).Find(&bets)
 	if res.Error != nil {
 		return nil, dbHandleError(res.Error)
 	}
@@ -307,12 +340,6 @@ func (h DBHandler) CancelBet(userBet models.UserBet, user models.User) int {
 	res := h.DB.Delete(&models.UserBet{}, userBet.ID)
 	if res.Error != nil {
 		return dbHandleError(res.Error)
-	}
-
-	// Update User Balance
-	err := h.UpdateUserBalance(userBet.Amount, user, fmt.Sprintf("Bet %d cancelled", userBet.BetID))
-	if err != -1 {
-		return err
 	}
 
 	return -1

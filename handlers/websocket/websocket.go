@@ -103,3 +103,12 @@ func (wsh *WebSocketHandler) SendMessageToUser(uuid string, message []byte) erro
 	}
 	return nil
 }
+
+func (wsh *WebSocketHandler) SendMessageToAll(message []byte) int {
+	for _, conn := range activeConnections {
+		if err := conn.WriteMessage(websocket.BinaryMessage, message); err != nil {
+			continue
+		}
+	}
+	return -1
+}
