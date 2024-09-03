@@ -6,9 +6,11 @@ import (
 	"gambler/backend/handlers"
 	"gambler/backend/tools"
 	"math/rand"
+	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/log"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/lib/pq"
 )
@@ -99,6 +101,44 @@ func CreateBet(c *fiber.Ctx) error {
 		Success: true,
 		Message: "Bet created",
 		Code:    201,
+		Body:    bet,
+	})
+}
+
+func GetBet(c *fiber.Ctx) error {
+	paramsId := c.Params("id")
+
+	id, pErr := strconv.ParseUint(paramsId, 10, 32)
+	if pErr != nil {
+		return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
+			Success: false,
+			Message: "Invalid id",
+			Code:    400,
+		})
+	}
+
+	bet, err := handlers.DB.GetBetByID(uint(id))
+	if err != -1 {
+		log.Info(tools.GetErrorString(err))
+		return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
+			Success: false,
+			Message: "Internal server error",
+			Code:    500,
+		})
+	}
+
+	if bet == nil {
+		return c.Status(404).JSON(tools.GlobalErrorHandlerResp{
+			Success: false,
+			Message: "Bet not found",
+			Code:    404,
+		})
+	}
+
+	return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
+		Success: true,
+		Message: "Bet found",
+		Code:    200,
 		Body:    bet,
 	})
 }

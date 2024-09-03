@@ -26,7 +26,7 @@ func HandleMessageEvent(wsh *WebSocketHandler, uuid string, event int, data []by
 		res, err = betActionCancelEventHandler(wsh, data, uuid)
 	case tools.BET_INFO:
 		// Handle bet info event
-		res, err = betInfoEventHandler(data)
+		res, err = betInfoEventHandler(data, uuid)
 	default:
 		res, err = nil, tools.WS_COMMAND_NOTFOUND
 	}
@@ -100,7 +100,7 @@ func betActionBetEventHandler(wsh *WebSocketHandler, data []byte, uuid string) (
 
 	betUpdateEventHandler(wsh, bet.ID)
 
-	return []byte{tools.BET_ACTION_RES, tools.WEBSOCKET_VERSION, 1}, -1
+	return []byte{tools.BET_ACTION_RES, tools.WEBSOCKET_VERSION, byte(bet.ID), 1}, -1
 }
 
 func betActionCancelEventHandler(wsh *WebSocketHandler, data []byte, uuid string) ([]byte, int) {
@@ -149,7 +149,7 @@ func betActionCancelEventHandler(wsh *WebSocketHandler, data []byte, uuid string
 	return []byte{}, -1
 }
 
-func betInfoEventHandler(data []byte) ([]byte, int) {
+func betInfoEventHandler(data []byte, uuid string) ([]byte, int) {
 	var betLog []calculator.BetLog
 	betID := data[0]
 	input := int(data[1])
@@ -161,9 +161,13 @@ func betInfoEventHandler(data []byte) ([]byte, int) {
 	}
 
 	log.Info(betID, input)
+	user, err := handlers.DB.GetUserByUsername(uuid)
+	if err != -1 {
+		return []byte{}, err
+	}
 
 	// Calculate winning amount
-	winAmount, err := calculator.CalculateWinningAmount(fmt.Sprintf("b-%d", int(betID)), input, betLog)
+	winAmount, err := calculator.CalculateWinningAmount(fmt.Sprintf("b-%d", int(betID)), user.ID, input, betLog)
 	if err != -1 {
 		log.Info(err, tools.GetErrorString(err))
 		return []byte{}, err
@@ -171,7 +175,7 @@ func betInfoEventHandler(data []byte) ([]byte, int) {
 
 	intPart, fracPart := math.Modf(winAmount)
 
-	return []byte{tools.BET_INFO_RES, tools.WEBSOCKET_VERSION, byte(intPart), byte(int(fracPart * 100))}, -1
+	return []byte{tools.BET_INFO_RES, tools.WEBSOCKET_VERSION, betID, byte(intPart), byte(int(fracPart * 100))}, -1
 }
 
 func betUpdateEventHandler(wsh *WebSocketHandler, betID uint) int {
