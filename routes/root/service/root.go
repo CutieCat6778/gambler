@@ -19,50 +19,21 @@ func AddBalanceToUser(c *fiber.Ctx) error {
 	var req AddBalanceReq
 
 	if err := c.BodyParser(req); err != nil {
-		return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "[Parser] Bad request",
-			Code:    400,
-		})
+		return tools.ReturnData(c, 400, nil, -1)
 	}
 
 	if errs := handlers.VHandler.Validate(req); len(errs) > 0 && errs[0].Error {
-		return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "[Validator] Bad request",
-			Code:    400,
-			Body:    errs,
-		})
+		return tools.ReturnData(c, 400, errs, -1)
 	}
 
-	user, err := handlers.DB.GetUserByUsername(req.UserId)
+	user, err := handlers.DB.GetUserByID(tools.ParseUInt(req.UserId))
 	if err != -1 {
-		if err == tools.DB_REC_NOTFOUND {
-			return c.Status(404).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Bet not found",
-				Code:    404,
-			})
-		} else {
-			return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Internal server error",
-				Code:    500,
-			})
-		}
+		return tools.ReturnData(c, 500, nil, err)
 	}
 	newAmount := user.Balance + req.Amount
 	err = handlers.DB.UpdateUserBalance(newAmount, *user, req.Reason)
 	if err != -1 {
-		return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "Internal server error",
-			Code:    500,
-		})
+		return tools.ReturnData(c, 500, nil, err)
 	}
-	return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
-		Success: true,
-		Message: "Balance added",
-		Code:    200,
-	})
+	return tools.ReturnData(c, 200, nil, -1)
 }

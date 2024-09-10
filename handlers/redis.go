@@ -107,8 +107,10 @@ func (c *CacheHandler) RemoveBet(betID uint) int {
 	return -1
 }
 
-func (c *CacheHandler) GetBetById(key string) (*models.Bet, int) {
+func (c *CacheHandler) GetBetById(betID uint) (*models.Bet, int) {
 	var bet models.Bet
+
+	key := fmt.Sprintf("b-%d", betID)
 
 	// Get the JSON string from Redis
 	res := c.Redis.Conn().Get(c.Context, key)
@@ -154,7 +156,7 @@ func (c *CacheHandler) GetAllBet() (*[]models.Bet, int) {
 		}
 		log.Info(key)
 		// Retrieve the bet by ID
-		bet, err := c.GetBetById(key)
+		bet, err := c.GetBetById(tools.ConvertKeyToBetID(key))
 		if err != -1 {
 			if err == tools.RD_KEY_NOT_FOUND {
 				continue

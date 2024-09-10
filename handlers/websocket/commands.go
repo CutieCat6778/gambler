@@ -55,13 +55,13 @@ func HandleMessageEvent(wsh *WebSocketHandler, uuid string, event int, data []by
 }
 
 func betActionBetEventHandler(wsh *WebSocketHandler, data []byte, uuid string) ([]byte, int) {
-	betID := int(data[0])
+	betID := uint(data[0])
 	input := int(data[1])
 	amountInt := int(data[2])
 	amountFrac := int(data[3])
 	amount := combineToFloat64(amountInt, amountFrac)
 
-	user, err := handlers.DB.GetUserByUsername(uuid)
+	user, err := handlers.DB.GetUserByID(tools.ParseUInt(uuid))
 	if err != -1 {
 		return []byte{}, err
 	}
@@ -70,7 +70,7 @@ func betActionBetEventHandler(wsh *WebSocketHandler, data []byte, uuid string) (
 		return []byte{}, tools.BET_INSUFFICIENT_BALANCE
 	}
 
-	bet, err := handlers.Cache.GetBetById(fmt.Sprintf("b-%d", betID))
+	bet, err := handlers.Cache.GetBetById(betID)
 	if err != -1 {
 		return []byte{}, err
 	}
@@ -116,15 +116,15 @@ func betActionBetEventHandler(wsh *WebSocketHandler, data []byte, uuid string) (
 }
 
 func betActionCancelEventHandler(wsh *WebSocketHandler, data []byte, uuid string) ([]byte, int) {
-	betID := int(data[0])
+	betID := uint(data[0])
 	userBetID := uint(data[1])
 
-	user, err := handlers.DB.GetUserByUsername(uuid)
+	user, err := handlers.DB.GetUserByID(tools.ParseUInt(uuid))
 	if err != -1 {
 		return []byte{}, err
 	}
 
-	bet, err := handlers.Cache.GetBetById(fmt.Sprintf("b-%d", betID))
+	bet, err := handlers.Cache.GetBetById(betID)
 	if err != -1 {
 		return []byte{}, err
 	}
@@ -173,13 +173,13 @@ func betInfoEventHandler(data []byte, uuid string) ([]byte, int) {
 	}
 
 	log.Info(betID, input)
-	user, err := handlers.DB.GetUserByUsername(uuid)
+	user, err := handlers.DB.GetUserByID(tools.ParseUInt(uuid))
 	if err != -1 {
 		return []byte{}, err
 	}
 
 	// Calculate winning amount
-	winAmount, err := calculator.CalculateWinningAmount(fmt.Sprintf("b-%d", int(betID)), user.ID, input, betLog)
+	winAmount, err := calculator.CalculateWinningAmount(uint(betID), user.ID, input, betLog)
 	if err != -1 {
 		log.Info(err, tools.GetErrorString(err))
 		return []byte{}, err

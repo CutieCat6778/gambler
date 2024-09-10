@@ -122,7 +122,7 @@ func (h DBHandler) UpdateUserBalance(amount float64, user models.User, reason st
 		UserID: user.ID,
 		Amount: amount,
 		Reason: reason,
-	}, user.Username)
+	}, user.ID)
 	if err != -1 {
 		return err
 	}
@@ -137,9 +137,9 @@ func (h DBHandler) CreateBalanceHistory(balance models.BalanceHistory) int {
 	return -1
 }
 
-func (h DBHandler) FindBalanceHistoryByUser(username string) (*[]models.BalanceHistory, int) {
+func (h DBHandler) FindBalanceHistoryByUser(userId uint) (*[]models.BalanceHistory, int) {
 	var balance []models.BalanceHistory
-	user, err := h.GetUserByUsername(username)
+	user, err := h.GetUserByID(userId)
 	if err != -1 {
 		return nil, err
 	}
@@ -150,8 +150,8 @@ func (h DBHandler) FindBalanceHistoryByUser(username string) (*[]models.BalanceH
 	return &balance, -1
 }
 
-func (h DBHandler) AddBalanceHistory(balance models.BalanceHistory, userId string) int {
-	user, err := h.GetUserByUsername(userId)
+func (h DBHandler) AddBalanceHistory(balance models.BalanceHistory, userId uint) int {
+	user, err := h.GetUserByID(userId)
 	if err != -1 {
 		return err
 	}
@@ -164,7 +164,7 @@ func (h DBHandler) AddBalanceHistory(balance models.BalanceHistory, userId strin
 
 // Bet methods
 
-func (h DBHandler) CreateBet(bet models.Bet, username string, betOption string, amount float64) int {
+func (h DBHandler) CreateBet(bet models.Bet, userId uint, betOption string, amount float64) int {
 	tx := h.DB.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -180,7 +180,7 @@ func (h DBHandler) CreateBet(bet models.Bet, username string, betOption string, 
 	}
 
 	// Get the user ID
-	user, err := h.GetUserByUsername(username)
+	user, err := h.GetUserByID(userId)
 	if err != -1 {
 		tx.Rollback()
 		return err
@@ -265,9 +265,9 @@ func (h DBHandler) DeleteBet(betID int) int {
 	return -1
 }
 
-func (h DBHandler) GetUserBet(username string) (*[]models.UserBet, int) {
+func (h DBHandler) GetUserBet(userId uint) (*[]models.UserBet, int) {
 	var user models.User
-	res := h.DB.Where("username = ?", username).First(&user)
+	res := h.DB.Where("ID = ?", userId).First(&user)
 	if res.Error != nil {
 		return nil, dbHandleError(res.Error)
 	}
@@ -291,9 +291,9 @@ func (h DBHandler) GetUserBetByID(id uint) (*models.UserBet, int) {
 	return &bet, -1
 }
 
-func (h DBHandler) GetUserBetByBetID(betID uint, username string) (*models.UserBet, int) {
+func (h DBHandler) GetUserBetByBetID(betID uint, userId uint) (*models.UserBet, int) {
 	var bet models.UserBet
-	res := h.DB.Preload("UserBets").Where("user_id = ? AND bet_id = ? AND deleted_at IS NULL", username, betID).First(&bet)
+	res := h.DB.Preload("UserBets").Where("user_id = ? AND bet_id = ? AND deleted_at IS NULL", userId, betID).First(&bet)
 	if res.Error != nil {
 		return nil, dbHandleError(res.Error)
 	}
