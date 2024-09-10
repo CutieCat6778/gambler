@@ -5,6 +5,7 @@ import (
 	"gambler/backend/tools"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/log"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -18,9 +19,9 @@ type (
 )
 
 func GetUserByID(c *fiber.Ctx) error {
-	rawUserId := c.Params("id")
-	userId := tools.ParseUInt(rawUserId)
-	user, err := handlers.DB.GetUserByID(userId)
+	userId := c.Params("name")
+	user, err := handlers.DB.GetUserByUsername(userId)
+	log.Info(user)
 	if err != -1 {
 		if err == tools.DB_REC_NOTFOUND {
 			return c.Status(404).JSON(tools.GlobalErrorHandlerResp{
@@ -47,7 +48,16 @@ func GetUserByID(c *fiber.Ctx) error {
 }
 
 func GetSelf(c *fiber.Ctx) error {
-	userId, jwtErr := c.Locals("claims").(jwt.Claims).GetSubject()
+	claims := c.Locals("claims").(jwt.Claims)
+	if claims == nil {
+		return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
+			Success: false,
+			Message: "Unauthorized",
+			Code:    401,
+		})
+	}
+	log.Info(claims)
+	userId, jwtErr := claims.GetSubject()
 	if jwtErr != nil {
 		return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
 			Success: false,
@@ -55,6 +65,7 @@ func GetSelf(c *fiber.Ctx) error {
 			Code:    401,
 		})
 	}
+	log.Info(userId)
 	user, err := handlers.DB.GetUserByUsername(userId)
 	if err != -1 {
 		if err == tools.DB_REC_NOTFOUND {

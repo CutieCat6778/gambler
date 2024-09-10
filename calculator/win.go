@@ -2,12 +2,12 @@ package calculator
 
 import (
 	"fmt"
-	"gambler/backend/database/models"
 	"gambler/backend/database/models/customTypes"
 	"gambler/backend/handlers"
 	"gambler/backend/tools"
 	"math"
 
+	"github.com/gofiber/fiber/v2/log"
 	logger "github.com/gofiber/fiber/v2/log"
 )
 
@@ -18,17 +18,6 @@ type (
 	}
 )
 
-func generateBetLog(bets []models.UserBet) []BetLog {
-	var betLogs []BetLog
-	for _, bet := range bets {
-		betLogs = append(betLogs, BetLog{
-			BetAmount: bet.Amount,
-			BetOption: bet.BetOption,
-		})
-	}
-	return betLogs
-}
-
 func CalculateWinningAmount(betID string, userID uint, inputIndex int, betLog []BetLog) (float64, int) {
 	bet, err := handlers.Cache.GetBetById(betID)
 	if err != -1 {
@@ -36,6 +25,9 @@ func CalculateWinningAmount(betID string, userID uint, inputIndex int, betLog []
 	}
 	if bet.Status != customTypes.Open {
 		return 0, tools.BET_NOT_ACTIVE
+	}
+	if inputIndex >= len(bet.BetOptions) {
+		return 0, tools.BET_OPTION_NOT_FOUND
 	}
 	input := bet.BetOptions[inputIndex]
 
@@ -54,15 +46,17 @@ func CalculateWinningAmount(betID string, userID uint, inputIndex int, betLog []
 	for _, bet := range bet.UserBets {
 		amount += bet.Amount
 		if bet.UserID != userID && bet.BetOption == input {
-			sumBet += bet.Amount
-		} else if bet.UserID != userID && bet.BetOption == input {
 			otherWin += bet.Amount
+		} else if bet.UserID == userID && bet.BetOption == input {
+			sumBet += bet.Amount
 		}
 	}
 
 	if sumBet == 0.0 {
 		return 0, -1
 	}
+
+	log.Info(fmt.Sprintf("Amount: %v, SumBet: %v, OtherWin: %v", amount, sumBet, otherWin))
 
 	var winAmount float64
 	if otherWin == 0.0 {

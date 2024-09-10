@@ -38,7 +38,7 @@ func main() {
 
 	tools.ConfigureApp(app)
 
-	_ = handlers.NewDB()
+	db := handlers.NewDB()
 	_ = handlers.NewValidator()
 	cache := handlers.NewCache(app)
 	_ = websocket.NewWebSocketHandler(cache)
@@ -58,6 +58,8 @@ func main() {
 			Code:    200,
 		})
 	})
+
+	handlers.CallRoutine(db)
 
 	app.Listen(":3000")
 }

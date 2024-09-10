@@ -21,30 +21,25 @@ type (
 		Redis   *redis.Storage
 		Context context.Context
 	}
-	CurrentGame struct {
-		GameId string
-		Users  []string
-	}
 )
 
 var Cache CacheHandler
 
 func NewCache(app *fiber.App) *CacheHandler {
-	log.Info(tools.HOST_REDIS, tools.PSW_REDIS, "ABC")
 	if tools.HOST_REDIS == "" || tools.PSW_REDIS == "" {
 		log.Fatal("[CACHE] Redis connection details not found in .env")
+		tools.SendWebHook("[CACHE] Redis connection details not found in .env")
 		panic("Redis connection details not found in .env")
 	}
 	Cache = CacheHandler{
 		Redis: redis.New(redis.Config{
 			Host:     tools.HOST_REDIS,
-			Port:     18254,
+			Port:     6379,
 			Password: tools.PSW_REDIS,
 			Database: 0,
 		}),
 		Context: context.Background(),
 	}
-	Cache.LoadDatabaseBets()
 	log.Info("[CACHE] Connected to Redis")
 	return &Cache
 }
@@ -57,47 +52,56 @@ func AddCache(exp time.Duration) fiber.Handler {
 	})
 }
 
-// StoreUserConnection stores a user's WebSocket connection ID in Redis
-func (c *CacheHandler) StoreUserConnection(userID, connectionID string) int {
-	cacheKey := fmt.Sprintf("user:%s:connection", userID)
-	err := c.Redis.Set(cacheKey, []byte(connectionID), time.Hour*6)
-	if err != nil {
-		return HandleRedisError(err)
-	}
-	return -1
+// ListenForExpiredKeys listens for expired keys in Redis and handles them
+func (c *CacheHandler) ListenForExpiredKeys() {
+	// Subscribe to the Redis expired events
+	pubsub := c.Redis.Conn().Subscribe(c.Context, "__keyevent@0__:expired") // Replace 0 with your Redis DB index if different
+
+	// Handle messages in a separate goroutine
+	go func() {
+		for {
+			msg, err := pubsub.ReceiveMessage(c.Context)
+			if err != nil {
+				log.Error("Failed to receive message from Redis:", err)
+				continue
+			}
+
+			log.Info("Received expired key event:", msg.Payload)
+
+			// Handle the expired key event (msg.Payload contains the expired key name)
+			c.HandleExpiredKey(msg.Payload)
+		}
+	}()
 }
 
-// GetUserConnection retrieves a user's WebSocket connection ID from Redis
-func (c *CacheHandler) GetUserConnection(userID string) (string, int) {
-	cacheKey := fmt.Sprintf("user:%s:connection", userID)
-	connectionID, err := c.Redis.Get(cacheKey)
-	if err != nil {
-		return "", tools.RD_KEY_NOT_FOUND
-	} else if err != nil {
-		return "", HandleRedisError(err)
+// HandleExpiredKey processes the expired key event
+func (c *CacheHandler) HandleExpiredKey(key string) {
+	// Add your logic to handle expired keys here
+	if strings.HasPrefix(key, "b-") {
+		log.Info("Bet expired:", key)
+		// You can add additional logic to handle the expiration of a bet, e.g., update the database, notify users, etc.
 	}
-	return string(connectionID), -1
 }
 
-// RemoveUserConnection removes a user's WebSocket connection ID from Redis
-func (c *CacheHandler) RemoveUserConnection(userID string) int {
-	cacheKey := fmt.Sprintf("user:%s:connection", userID)
-	err := c.Redis.Delete(cacheKey)
-	if err != nil {
-		return HandleRedisError(err)
-	}
-	return -1
-}
-
+// Bets
 func (c *CacheHandler) SetBet(bet models.Bet) int {
 	betData, err := json.Marshal(bet)
 	if err != nil {
 		return HandleRedisError(err)
 	}
 	// Save the JSON string to Redis with a key prefix
-	res := c.Redis.Conn().Set(c.Context, "b-"+fmt.Sprintf("%d", bet.ID), betData, time.Hour*6).Err()
+	res := c.Redis.Conn().Set(c.Context, "b-"+fmt.Sprintf("%d", bet.ID), betData, time.Until(bet.EndsAt)).Err()
 	if res != nil {
 		log.Error(res)
+		return HandleRedisError(res)
+	}
+	return -1
+}
+
+func (c *CacheHandler) RemoveBet(betID uint) int {
+	// Remove the bet from Redis
+	res := c.Redis.Conn().Del(c.Context, "b-"+fmt.Sprintf("%d", betID)).Err()
+	if res != nil {
 		return HandleRedisError(res)
 	}
 	return -1
@@ -160,6 +164,20 @@ func (c *CacheHandler) GetAllBet() (*[]models.Bet, int) {
 		bets = append(bets, *bet)
 	}
 	return &bets, -1
+}
+
+func (c *CacheHandler) GetAllBetByAmount(amount int) (*[]models.Bet, int) {
+	bets, err := c.GetAllBet()
+	if err != -1 {
+		return nil, err
+	}
+	filteredBets := []models.Bet{}
+	for _, bet := range *bets {
+		if len(filteredBets) <= amount {
+			filteredBets = append(filteredBets, bet)
+		}
+	}
+	return &filteredBets, -1
 }
 
 func (c *CacheHandler) UpdateBet(betID uint) int {

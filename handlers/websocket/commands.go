@@ -16,17 +16,24 @@ import (
 func HandleMessageEvent(wsh *WebSocketHandler, uuid string, event int, data []byte) {
 	var res []byte
 	var err int
+	var global = false
 	log.Info("Handling message event:", event, uuid)
 	switch event {
 	case tools.BET_ACTION_BET:
 		// Handle bet event
 		res, err = betActionBetEventHandler(wsh, data, uuid)
+		global = true
 	case tools.BET_ACTION_CANCEL:
 		// Handle cancel bet event
 		res, err = betActionCancelEventHandler(wsh, data, uuid)
+		global = true
 	case tools.BET_INFO:
 		// Handle bet info event
 		res, err = betInfoEventHandler(data, uuid)
+	case tools.PING:
+		// Handle ping event
+		res = []byte{tools.PONG, tools.WEBSOCKET_VERSION}
+		err = -1
 	default:
 		res, err = nil, tools.WS_COMMAND_NOTFOUND
 	}
@@ -35,10 +42,15 @@ func HandleMessageEvent(wsh *WebSocketHandler, uuid string, event int, data []by
 		wsh.SendErrorMessage(uuid, err, tools.GetErrorString(err))
 	}
 
-	wsErr := wsh.SendMessageToUser(uuid, res)
+	var wsErr int
+	if global {
+		wsErr = wsh.SendMessageToAll(res)
+	} else {
+		wsErr = wsh.SendMessageToUser(uuid, res)
+	}
 	log.Info(fmt.Sprintf("%v", res))
-	if wsErr != nil {
-		wsh.SendErrorMessage(uuid, tools.WS_UNKNOWN_ERR, tools.GetErrorString(tools.WS_UNKNOWN_ERR))
+	if wsErr != -1 {
+		wsh.SendErrorMessage(uuid, wsErr, tools.GetErrorString(wsErr))
 	}
 }
 
@@ -100,7 +112,7 @@ func betActionBetEventHandler(wsh *WebSocketHandler, data []byte, uuid string) (
 
 	betUpdateEventHandler(wsh, bet.ID)
 
-	return []byte{tools.BET_ACTION_RES, tools.WEBSOCKET_VERSION, byte(bet.ID), 1}, -1
+	return []byte{tools.BET_UPDATE, tools.WEBSOCKET_VERSION, byte(bet.ID)}, -1
 }
 
 func betActionCancelEventHandler(wsh *WebSocketHandler, data []byte, uuid string) ([]byte, int) {
@@ -146,7 +158,7 @@ func betActionCancelEventHandler(wsh *WebSocketHandler, data []byte, uuid string
 
 	betUpdateEventHandler(wsh, bet.ID)
 
-	return []byte{}, -1
+	return []byte{tools.BET_UPDATE, tools.WEBSOCKET_VERSION, byte(bet.ID)}, -1
 }
 
 func betInfoEventHandler(data []byte, uuid string) ([]byte, int) {

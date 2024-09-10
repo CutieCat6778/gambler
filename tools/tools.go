@@ -1,8 +1,12 @@
 package tools
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -144,4 +148,50 @@ func HeaderParser(c *fiber.Ctx) string {
 
 	token := strings.Split(rawBearer, "Bearer ")[1]
 	return token
+}
+
+func ParseTimestamp(timestamp string) time.Time {
+	t, err := time.Parse(time.RFC3339, timestamp)
+	if err != nil {
+		log.Error(err)
+	}
+	return t
+}
+
+type Payload struct {
+	Content string `json:"content"`
+}
+
+func SendWebHook(err string) int {
+	_, file, line, ok := runtime.Caller(1)
+	if ok {
+		log.Info(fmt.Sprintf("Called from %s, line %d", file, line))
+	}
+	webhookURL := "https://discordapp.com/api/webhooks/1274463723960143883/__YvfQkphIcyetuB0VBtS3RysKraGv2LORHolSyfMXDvmWuMFwVcEqXB4Hj7A0ZM5Hh4"
+
+	// Create the payload
+	payload := Payload{Content: fmt.Sprintf("----\n**Error:** %s\n**File:** %s\n**Line:** %d", err, file, line)}
+
+	// Encode payload into JSON
+	payloadBytes, jErr := json.Marshal(payload)
+	if jErr != nil {
+		log.Error(jErr)
+		return JSON_MARSHAL_ERROR
+	}
+
+	// Send the POST request
+	resp, hErr := http.Post(webhookURL, "application/json", bytes.NewBuffer(payloadBytes))
+	if hErr != nil {
+		log.Errorf("failed to send webhook: %v", err)
+		return WEBHOOK_ERROR
+	}
+	defer resp.Body.Close()
+
+	// Check for non-200 HTTP status codes
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		log.Errorf("unexpected status code: %d", resp.StatusCode)
+		return WEBHOOK_ERROR
+	}
+
+	return -1
 }
