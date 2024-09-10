@@ -1,0 +1,18 @@
+[package]
+name = "gambler"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+argon2 = "0.5.3"
+chrono = "0.4.38"
+diesel = { version = "2", features = ["postgres", "chrono"] }
+rocket = "0.5.1"
+
+[dependencies.rocket_db_pools]
+version = "0.2.0"
+features = ["diesel_postgres"]
+
+[dependencies.rocket_sync_db_pools]
+version = "0.1.0"
+features = ["diesel_postgres_pool"]
