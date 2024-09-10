@@ -149,6 +149,8 @@ func JwtGuardHandler(c *fiber.Ctx) error {
 		}
 	}
 
+	log.Info(claims)
+
 	c.Locals("claims", claims)
 	c.Locals("isAuthorized", true)
 

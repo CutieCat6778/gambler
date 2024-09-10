@@ -3,6 +3,7 @@ package models
 import (
 	"encoding/json"
 	"gambler/backend/database/models/customTypes"
+	"time"
 
 	"github.com/lib/pq"
 )
@@ -14,14 +15,16 @@ type Bet struct {
 	UserBets    []UserBet             `json:"user_bets" gorm:"foreignKey:BetID"`
 	BetOptions  pq.StringArray        `json:"betOptions" gorm:"type:text[]"`
 	Status      customTypes.BetStatus `json:"status"`
+	EndsAt      time.Time             `json:"endsAt"`
+	Author      string                `json:"author"`
 }
 
 func (b Bet) MarshalBinary() ([]byte, error) {
 	return json.Marshal(b)
 }
 
-func (b Bet) UnmarshalBinary(data []byte) error {
-	return json.Unmarshal(data, b)
+func (b *Bet) UnmarshalBinary(data []byte) error {
+	return json.Unmarshal(data, &b)
 }
 
 type UserBet struct {

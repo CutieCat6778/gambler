@@ -48,7 +48,7 @@ func (h DBHandler) CreateUser(user models.User) int {
 	if user.ID == 0 {
 		tx.Rollback()
 		log.Error("User ID not populated after creation")
-		return dbHandleError(errors.New("User ID not populated after creation"))
+		return dbHandleError(errors.New("user ID not populated after creation"))
 	}
 
 	// Create the initial balance history entry
@@ -190,7 +190,7 @@ func (h DBHandler) CreateBet(bet models.Bet, username string, betOption string, 
 	if bet.ID == 0 {
 		tx.Rollback()
 		log.Error("Bet ID not populated after creation")
-		return dbHandleError(errors.New("Bet ID not populated after creation"))
+		return dbHandleError(errors.New("bet ID not populated after creation"))
 	}
 
 	// Create the initial balance history entry
@@ -345,11 +345,36 @@ func (h DBHandler) CancelBet(userBet models.UserBet, user models.User) int {
 	return -1
 }
 
+func (h DBHandler) GetAllBets() (*[]models.Bet, int) {
+	var bet []models.Bet
+	res := h.DB.Preload("UserBets").Find(&bet)
+	if res.Error != nil {
+		return nil, dbHandleError(res.Error)
+	}
+	return &bet, -1
+}
+
 func (h DBHandler) GetAllActiveBets() (*[]models.Bet, int) {
 	var bets []models.Bet
 
 	// Use Preload to also load associated UserBets for each Bet
 	res := h.DB.Where("status = ?", customTypes.Open).
+		Preload("UserBets"). // Preload the UserBets relation
+		Find(&bets)
+
+	if res.Error != nil {
+		log.Info(res.Error)
+		return nil, dbHandleError(res.Error)
+	}
+
+	return &bets, -1
+}
+
+func (h DBHandler) GetAllClosedBets() (*[]models.Bet, int) {
+	var bets []models.Bet
+
+	// Use Preload to also load associated UserBets for each Bet
+	res := h.DB.Where("status = ?", customTypes.Closed).
 		Preload("UserBets"). // Preload the UserBets relation
 		Find(&bets)
 
