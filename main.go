@@ -2,6 +2,7 @@ package main
 
 import (
 	"gambler/backend/handlers"
+	"gambler/backend/handlers/routine"
 	"gambler/backend/handlers/websocket"
 	authController "gambler/backend/routes/auth/controller"
 	betsController "gambler/backend/routes/bets/controller"
@@ -38,7 +39,7 @@ func main() {
 
 	tools.ConfigureApp(app)
 
-	db := handlers.NewDB()
+	_ = handlers.NewDB()
 	_ = handlers.NewValidator()
 	cache := handlers.NewCache(app)
 	_ = websocket.NewWebSocketHandler(cache)
@@ -59,7 +60,7 @@ func main() {
 		})
 	})
 
-	handlers.CallRoutine(db)
+	routine.ListenForExpiredKeys()
 
 	app.Listen(":3000")
 }
