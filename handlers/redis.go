@@ -52,37 +52,6 @@ func AddCache(exp time.Duration) fiber.Handler {
 	})
 }
 
-// ListenForExpiredKeys listens for expired keys in Redis and handles them
-func (c *CacheHandler) ListenForExpiredKeys() {
-	// Subscribe to the Redis expired events
-	pubsub := c.Redis.Conn().Subscribe(c.Context, "__keyevent@0__:expired") // Replace 0 with your Redis DB index if different
-
-	// Handle messages in a separate goroutine
-	go func() {
-		for {
-			msg, err := pubsub.ReceiveMessage(c.Context)
-			if err != nil {
-				log.Error("Failed to receive message from Redis:", err)
-				continue
-			}
-
-			log.Info("Received expired key event:", msg.Payload)
-
-			// Handle the expired key event (msg.Payload contains the expired key name)
-			c.HandleExpiredKey(msg.Payload)
-		}
-	}()
-}
-
-// HandleExpiredKey processes the expired key event
-func (c *CacheHandler) HandleExpiredKey(key string) {
-	// Add your logic to handle expired keys here
-	if strings.HasPrefix(key, "b-") {
-		log.Info("Bet expired:", key)
-		// You can add additional logic to handle the expiration of a bet, e.g., update the database, notify users, etc.
-	}
-}
-
 // Bets
 func (c *CacheHandler) SetBet(bet models.Bet) int {
 	betData, err := json.Marshal(bet)

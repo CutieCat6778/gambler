@@ -257,6 +257,19 @@ func (h DBHandler) UpdateBet(bet models.Bet) int {
 	return -1
 }
 
+func (h DBHandler) UpdateBetStatus(betID uint, status customTypes.BetStatus) (*models.Bet, int) {
+	bet, err := h.FindBet(int(betID))
+	if err != -1 {
+		return nil, err
+	}
+	bet.Status = status
+	res := h.DB.Save(&bet)
+	if res.Error != nil {
+		return nil, dbHandleError(res.Error)
+	}
+	return bet, -1
+}
+
 func (h DBHandler) DeleteBet(betID int) int {
 	res := h.DB.Delete(&models.Bet{}, betID)
 	if res.Error != nil {
