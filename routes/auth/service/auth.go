@@ -36,20 +36,11 @@ func Login(c *fiber.Ctx) error {
 	req := new(LoginReq)
 
 	if err := c.BodyParser(req); err != nil {
-		return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "[Parser] Bad request",
-			Code:    400,
-		})
+		tools.ReturnData(c, 400, nil, -1)
 	}
 
 	if errs := handlers.VHandler.Validate(req); len(errs) > 0 && errs[0].Error {
-		return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "[Validator] Bad request",
-			Code:    400,
-			Body:    errs,
-		})
+		return tools.ReturnData(c, 400, errs, -1)
 	}
 
 	accessToken := tools.HeaderParser(c)
@@ -57,11 +48,7 @@ func Login(c *fiber.Ctx) error {
 		user, err := handlers.DB.GetUserByUsername(req.Username)
 		if err != -1 {
 			if err == tools.DB_REC_NOTFOUND {
-				return c.Status(404).JSON(tools.GlobalErrorHandlerResp{
-					Success: false,
-					Message: "User not found",
-					Code:    404,
-				})
+				return tools.ReturnData(c, 404, nil, tools.DB_REC_NOTFOUND)
 			} else {
 				return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
 					Success: false,
@@ -74,40 +61,18 @@ func Login(c *fiber.Ctx) error {
 		valid := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(tools.HASH_SECRET+":"+req.Password))
 		if valid != nil {
 			fmt.Println(valid)
-			return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Unauthorized, invalid password",
-				Code:    401,
-				Body:    strings.Split(valid.Error(), ": ")[1],
-			})
+			return tools.ReturnData(c, 401, strings.Split(valid.Error(), ": ")[1], -1)
 		}
-		tokens, err := middleware.Sign(user.Username)
+		tokens, err := middleware.Sign(user.ID)
 		if err != -1 {
-			if err == tools.JWT_FAILED_TO_SIGN {
-				return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-					Success: false,
-					Message: "Internal server error, failed to sign token",
-					Code:    500,
-				})
-			} else {
-				return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-					Success: false,
-					Message: "Internal server error",
-					Code:    500,
-				})
-			}
+			return tools.ReturnData(c, 500, nil, err)
 		}
 
 		tools.AddCacheTime(c, time.Hour*6)
-		return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
-			Success: true,
-			Message: "Login success",
-			Code:    200,
-			Body: LoginRes{
-				Token: tokens,
-				User:  user,
-			},
-		})
+		return tools.ReturnData(c, 200, LoginRes{
+			Token: tokens,
+			User:  user,
+		}, -1)
 	}
 	return handleLoginJWT(accessToken, c)
 }
@@ -115,136 +80,45 @@ func Login(c *fiber.Ctx) error {
 func handleLoginJWT(accessToken string, c *fiber.Ctx) error {
 	claims, err := middleware.Decode(accessToken, false)
 	if err != -1 {
-		if err == tools.JWT_FAILED_TO_DECODE {
-			return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Bad Request, token may in wrong format",
-				Code:    400,
-			})
-		} else if err == tools.JWT_INVALID {
-			return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Unauthorized, invalid token",
-				Code:    401,
-			})
-		} else if err == tools.JWT_EXPIRED {
-			return c.Status(fiber.StatusRequestTimeout).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Unauthorized, token expired",
-				Code:    fiber.StatusRequestTimeout,
-			})
-		} else {
-			return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Internal server error",
-				Code:    500,
-			})
-		}
+		return tools.ReturnData(c, 401, nil, err)
 	}
 	userId, jwtErr := claims.GetSubject()
 	if jwtErr != nil {
-		return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "Internal server error, failed to get user id",
-			Code:    500,
-		})
+		return tools.ReturnData(c, 500, nil, tools.JWT_INVALID)
 	}
-	user, err := handlers.DB.GetUserByUsername(userId)
+	user, err := handlers.DB.GetUserByID(tools.ParseUInt(userId))
 	if err != -1 {
-		if err == tools.DB_REC_NOTFOUND {
-			return c.Status(404).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "User not found",
-				Code:    404,
-			})
-		} else {
-			return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Internal server error",
-				Code:    500,
-			})
-		}
+		return tools.ReturnData(c, 500, nil, err)
 	}
 
-	return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
-		Success: true,
-		Message: "Login success",
-		Code:    200,
-		Body:    user,
-	})
+	return tools.ReturnData(c, 200, LoginRes{
+		Token: nil,
+		User:  user,
+	}, -1)
 }
 
 func RefreshToken(c *fiber.Ctx) error {
 	header := tools.HeaderParser(c)
 	if header == "" {
-		return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "Bad Request, token not found",
-			Code:    400,
-		})
+		return tools.ReturnData(c, 401, nil, tools.JWT_INVALID)
 	}
 
 	claims, err := middleware.Decode(header, true)
 	if err != -1 {
-		if err == tools.JWT_FAILED_TO_DECODE {
-			return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Bad Request, token may in wrong format",
-				Code:    400,
-			})
-		} else if err == tools.JWT_INVALID {
-			return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Unauthorized, invalid token",
-				Code:    401,
-			})
-		} else if err == tools.JWT_EXPIRED {
-			return c.Status(fiber.StatusRequestTimeout).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Unauthorized, token expired",
-				Code:    fiber.StatusRequestTimeout,
-			})
-		} else {
-			return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Internal server error",
-				Code:    500,
-			})
-		}
+		return tools.ReturnData(c, 401, nil, err)
 	}
 
 	userId, jwtErr := claims.GetSubject()
 	if jwtErr != nil {
-		return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "Internal server error, failed to get user id",
-			Code:    500,
-		})
+		return tools.ReturnData(c, 401, nil, tools.JWT_INVALID)
 	}
 
-	tokens, err := middleware.Sign(userId)
+	tokens, err := middleware.Sign(tools.ParseUInt(userId))
 	if err != -1 {
-		if err == tools.JWT_FAILED_TO_SIGN {
-			return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Internal server error, failed to sign token",
-				Code:    500,
-			})
-		} else {
-			return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Internal server error",
-				Code:    500,
-			})
-		}
+		return tools.ReturnData(c, 500, nil, err)
 	}
 
-	return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
-		Success: true,
-		Message: "Token refreshed",
-		Code:    200,
-		Body:    tokens,
-	})
+	return tools.ReturnData(c, 200, tokens, -1)
 }
 
 func Register(c *fiber.Ctx) error {
@@ -252,31 +126,17 @@ func Register(c *fiber.Ctx) error {
 
 	if err := c.BodyParser(req); err != nil {
 		fmt.Println(err)
-		return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "[Parser] Bad request: " + err.Error(),
-			Code:    400,
-			Body:    err,
-		})
+		return tools.ReturnData(c, 400, nil, -1)
 	}
 
 	if errs := handlers.VHandler.Validate(req); len(errs) > 0 && errs[0].Error {
-		return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "[Validator] Bad request",
-			Code:    400,
-			Body:    errs,
-		})
+		return tools.ReturnData(c, 400, errs, -1)
 	}
 
 	hashedPasssword, err := bcrypt.GenerateFromPassword([]byte(tools.HASH_SECRET+":"+req.Password), bcrypt.MinCost*2)
 	if err != nil {
 		fmt.Println(err)
-		return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "[Hash] Internal server error",
-			Code:    500,
-		})
+		return tools.ReturnData(c, 500, nil, -1)
 	}
 
 	user := models.User{
@@ -289,53 +149,20 @@ func Register(c *fiber.Ctx) error {
 
 	dbErr := handlers.DB.CreateUser(user)
 	if dbErr != -1 {
-		if dbErr == tools.DB_DUP_KEY {
-			return c.Status(409).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "User already exists",
-				Code:    409,
-			})
-		} else {
-			return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Internal server error",
-				Code:    500,
-			})
-		}
+		return tools.ReturnData(c, 500, nil, dbErr)
 	}
 
-	tokens, jwtErr := middleware.Sign(user.Username)
+	tokens, jwtErr := middleware.Sign(user.ID)
 	if jwtErr != -1 {
-		if jwtErr == tools.JWT_FAILED_TO_SIGN {
-			return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Internal server error, failed to sign key",
-				Code:    500,
-			})
-		} else {
-			return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Internal server error",
-				Code:    500,
-			})
-		}
+		return tools.ReturnData(c, 500, nil, jwtErr)
 	}
 
-	return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
-		Success: true,
-		Message: "Register success",
-		Code:    200,
-		Body: LoginRes{
-			Token: tokens,
-			User:  &user,
-		},
-	})
+	return tools.ReturnData(c, 200, LoginRes{
+		Token: tokens,
+		User:  &user,
+	}, -1)
 }
 
 func Ping(c *fiber.Ctx) error {
-	return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
-		Success: true,
-		Message: "Pong",
-		Code:    200,
-	})
+	return tools.ReturnData(c, 200, "Pong!", -1)
 }

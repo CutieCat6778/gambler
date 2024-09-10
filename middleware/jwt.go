@@ -20,8 +20,8 @@ type Jwt struct {
 	RefreshTokenExpDate time.Time `json:"refreshTokenExpDate"`
 }
 
-func Sign(username string) (*Jwt, int) {
-	user, dbErr := handlers.DB.GetUserByUsername(username)
+func Sign(userId uint) (*Jwt, int) {
+	user, dbErr := handlers.DB.GetUserByID(userId)
 	if dbErr != -1 {
 		return nil, dbErr
 	}
@@ -32,14 +32,14 @@ func Sign(username string) (*Jwt, int) {
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
 		NotBefore: jwt.NewNumericDate(time.Now()),
 		Issuer:    "Gambler Backend Service",
-		Subject:   username,
+		Subject:   fmt.Sprintf("%d", user.ID),
 	})
 	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS512, jwt.RegisteredClaims{
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(refreshTokenExpDate)),
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
 		NotBefore: jwt.NewNumericDate(time.Now()),
 		Issuer:    fmt.Sprintf("%d Version", user.RefreshTokenVersion),
-		Subject:   username,
+		Subject:   fmt.Sprintf("%d", user.ID),
 	})
 	AccessToken, err := accessToken.SignedString(tools.JWT_SECRET)
 	if err != nil {
@@ -87,12 +87,12 @@ func Decode(token string, isRefresh bool) (jwt.Claims, int) {
 		if err != nil {
 			return nil, tools.JWT_INVALID
 		}
-		username, jwtErr := t.Claims.GetSubject()
+		userId, jwtErr := t.Claims.GetSubject()
 		if jwtErr != nil {
 			return nil, tools.JWT_FAILED_TO_DECODE
 		}
 
-		user, dbErr := handlers.DB.GetUserByUsername(username)
+		user, dbErr := handlers.DB.GetUserByID(tools.ParseUInt(userId))
 		if dbErr != -1 {
 			return nil, dbErr
 		}
@@ -102,7 +102,7 @@ func Decode(token string, isRefresh bool) (jwt.Claims, int) {
 		}
 	}
 
-	return t.Claims.(jwt.Claims), -1
+	return t.Claims, -1
 }
 
 func JwtGuardHandler(c *fiber.Ctx) error {

@@ -195,3 +195,61 @@ func SendWebHook(err string) int {
 
 	return -1
 }
+
+func ConvertKeyToBetID(key string) uint {
+	return ParseUInt(strings.TrimPrefix(key, "b-"))
+}
+
+func ReturnData(c *fiber.Ctx, code int, body interface{}, err int) error {
+	if err != -1 {
+		return c.Status(code).JSON(GlobalErrorHandlerResp{
+			Success: false,
+			Message: GetErrorString(err),
+			Code:    err,
+		})
+	} else if code < 300 {
+		return c.Status(code).JSON(GlobalErrorHandlerResp{
+			Success: false,
+			Message: StatusText(code),
+			Code:    code,
+		})
+	}
+	return c.Status(code).JSON(GlobalErrorHandlerResp{
+		Success: true,
+		Message: "Success",
+		Code:    200,
+		Body:    body,
+	})
+}
+
+func StatusText(code int) string {
+	switch code {
+	case http.StatusOK:
+		return "OK"
+	case http.StatusCreated:
+		return "Created"
+	case http.StatusAccepted:
+		return "Accepted"
+	case http.StatusNoContent:
+		return "No Content"
+	case http.StatusBadRequest:
+		return "Bad Request"
+	case http.StatusUnauthorized:
+		return "Unauthorized"
+	case http.StatusForbidden:
+		return "Forbidden"
+	case http.StatusNotFound:
+		return "Not Found"
+	case http.StatusInternalServerError:
+		return "Internal Server Error"
+	case http.StatusNotImplemented:
+		return "Not Implemented"
+	case http.StatusBadGateway:
+		return "Bad Gateway"
+	case http.StatusServiceUnavailable:
+		return "Service Unavailable"
+	// Add more status codes as needed
+	default:
+		return "Unknown Status Code"
+	}
+}

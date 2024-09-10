@@ -18,7 +18,7 @@ type (
 	}
 )
 
-func CalculateWinningAmount(betID string, userID uint, inputIndex int, betLog []BetLog) (float64, int) {
+func CalculateWinningAmount(betID uint, userID uint, inputIndex int, betLog []BetLog) (float64, int) {
 	bet, err := handlers.Cache.GetBetById(betID)
 	if err != -1 {
 		return 0, err
@@ -72,7 +72,7 @@ func CalculateWinningAmount(betID string, userID uint, inputIndex int, betLog []
 	return winPercentage, -1
 }
 
-func CalculateWinForExistedBet(betID string, userID uint, inputIndex int) (float64, int) {
+func CalculateWinForExistedBet(betID uint, userID uint, inputIndex int) (float64, int) {
 	bet, err := handlers.Cache.GetBetById(betID)
 	if err != -1 {
 		return 0, err

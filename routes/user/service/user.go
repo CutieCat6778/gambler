@@ -19,152 +19,72 @@ type (
 )
 
 func GetUserByID(c *fiber.Ctx) error {
-	userId := c.Params("name")
-	user, err := handlers.DB.GetUserByUsername(userId)
+	userId := c.Params("id")
+	user, err := handlers.DB.GetUserByID(tools.ParseUInt(userId))
 	log.Info(user)
 	if err != -1 {
-		if err == tools.DB_REC_NOTFOUND {
-			return c.Status(404).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "User not found",
-				Code:    404,
-			})
-		} else {
-			return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Internal server error",
-				Code:    500,
-			})
-		}
+		return tools.ReturnData(c, 500, nil, err)
 	}
 	user.Password = ""
 	user.Email = ""
-	return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
-		Success: true,
-		Message: "User found",
-		Code:    200,
-		Body:    user,
-	})
+	return tools.ReturnData(c, 200, user, -1)
 }
 
 func GetSelf(c *fiber.Ctx) error {
 	claims := c.Locals("claims").(jwt.Claims)
 	if claims == nil {
-		return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "Unauthorized",
-			Code:    401,
-		})
+		return tools.ReturnData(c, 500, nil, -1)
 	}
 	log.Info(claims)
 	userId, jwtErr := claims.GetSubject()
 	if jwtErr != nil {
-		return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "Unauthorized",
-			Code:    401,
-		})
+		return tools.ReturnData(c, 401, nil, -1)
 	}
 	log.Info(userId)
-	user, err := handlers.DB.GetUserByUsername(userId)
+	user, err := handlers.DB.GetUserBetByID(tools.ParseUInt(userId))
 	if err != -1 {
-		if err == tools.DB_REC_NOTFOUND {
-			return c.Status(404).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "User not found",
-				Code:    404,
-			})
-		} else {
-			return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Internal server error",
-				Code:    500,
-			})
-		}
+		return tools.ReturnData(c, 500, nil, err)
 	}
 
 	activeBets, err := handlers.Cache.GetAllBet()
 	if err != -1 {
-		return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "Internal server error",
-			Code:    500,
-		})
+		return tools.ReturnData(c, 500, nil, err)
 	}
 
-	return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
-		Success: true,
-		Message: "User found",
-		Code:    200,
-		Body: fiber.Map{
-			"user": user,
-			"bets": activeBets,
-		},
-	})
+	return tools.ReturnData(c, 200, fiber.Map{
+		"user": user,
+		"bets": activeBets,
+	}, -1)
 }
 
 func GetUserBalance(c *fiber.Ctx) error {
 	userId, jwtErr := c.Locals("claims").(jwt.Claims).GetSubject()
 	if jwtErr != nil {
-		return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "Unauthorized",
-			Code:    401,
-		})
+		return tools.ReturnData(c, 401, nil, -1)
 	}
-	balance, err := handlers.DB.FindBalanceHistoryByUser(userId)
+	balance, err := handlers.DB.FindBalanceHistoryByUser(tools.ParseUInt(userId))
 	if err != -1 {
 		if err == tools.DB_REC_NOTFOUND {
-			return c.Status(404).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "User not found",
-				Code:    404,
-			})
+			return tools.ReturnData(c, 404, nil, tools.DB_REC_NOTFOUND)
 		} else {
-			return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Internal server error",
-				Code:    500,
-			})
+			return tools.ReturnData(c, 500, nil, err)
 		}
 	}
-	return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
-		Success: true,
-		Message: "Balance found",
-		Code:    200,
-		Body:    balance,
-	})
+	return tools.ReturnData(c, 200, balance, -1)
 }
 
 func GetUserBets(c *fiber.Ctx) error {
 	userId, jwtErr := c.Locals("claims").(jwt.Claims).GetSubject()
 	if jwtErr != nil {
-		return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "Unauthorized",
-			Code:    401,
-		})
+		return tools.ReturnData(c, 401, nil, -1)
 	}
-	bets, err := handlers.DB.GetUserBet(userId)
+	bets, err := handlers.DB.GetUserBet(tools.ParseUInt(userId))
 	if err != -1 {
 		if err == tools.DB_REC_NOTFOUND {
-			return c.Status(404).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "User not found",
-				Code:    404,
-			})
+			return tools.ReturnData(c, 404, nil, tools.DB_REC_NOTFOUND)
 		} else {
-			return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Internal server error",
-				Code:    500,
-			})
+			return tools.ReturnData(c, 500, nil, err)
 		}
 	}
-	return c.Status(200).JSON(tools.GlobalErrorHandlerResp{
-		Success: true,
-		Message: "Bets found",
-		Code:    200,
-		Body:    bets,
-	})
+	return tools.ReturnData(c, 200, bets, -1)
 }
