@@ -1,6 +1,4 @@
 /target
-<<<<<<< HEAD
 .env
 go.sum
-=======
->>>>>>> 75fc9cd ([UPDATE] sucessfully connected to database and backend app)
+Rocket.toml
