@@ -297,7 +297,7 @@ func (h DBHandler) GetUserBet(userId uint) (*[]models.UserBet, int) {
 func (h DBHandler) GetUserBetByID(id uint) (*models.UserBet, int) {
 	log.Info(id)
 	var bet models.UserBet
-	res := h.DB.First(&bet, id)
+	res := h.DB.Where("ID = ?", id).First(&bet)
 	if res.Error != nil {
 		return nil, dbHandleError(res.Error)
 	}

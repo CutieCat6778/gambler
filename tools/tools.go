@@ -112,8 +112,9 @@ func ConfigureApp(app *fiber.App) {
 	app.Use(healthcheck.New())
 
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "http://localhost:3001",
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+		AllowOrigins:     "http://localhost:4200",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
+		AllowCredentials: true,
 	}))
 
 	app.Use(limiter.New(limiter.Config{
@@ -133,6 +134,37 @@ func ConfigureApp(app *fiber.App) {
 			})
 		},
 	}))
+}
+
+func CreateCookie(c *fiber.Ctx, accessToken string, refreshToken string, userId uint) int {
+	rtC := &fiber.Cookie{
+		Name:     "refresh_token",
+		Value:    refreshToken,
+		Expires:  time.Now().Add(24 * time.Hour * 7),
+		HTTPOnly: true,
+		Secure:   false,
+		SameSite: "lax",
+	}
+	atC := &fiber.Cookie{
+		Name:     "access_token",
+		Value:    accessToken,
+		Expires:  time.Now().Add(15 * time.Minute),
+		Secure:   false,
+		SameSite: "lax",
+		HTTPOnly: true,
+	}
+	udC := &fiber.Cookie{
+		Name:     "user_id",
+		Value:    fmt.Sprintf("%d", userId),
+		Expires:  time.Now().Add(24 * time.Hour * 7),
+		Secure:   false,
+		SameSite: "lax",
+		HTTPOnly: true,
+	}
+	c.Cookie(rtC)
+	c.Cookie(atC)
+	c.Cookie(udC)
+	return -1
 }
 
 func HeaderParser(c *fiber.Ctx) string {
@@ -206,12 +238,14 @@ func ReturnData(c *fiber.Ctx, code int, body interface{}, err int) error {
 			Success: false,
 			Message: GetErrorString(err),
 			Code:    err,
+			Body:    body,
 		})
 	} else if code < 300 {
 		return c.Status(code).JSON(GlobalErrorHandlerResp{
 			Success: false,
 			Message: StatusText(code),
 			Code:    code,
+			Body:    body,
 		})
 	}
 	return c.Status(code).JSON(GlobalErrorHandlerResp{

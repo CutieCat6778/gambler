@@ -7,7 +7,6 @@ import (
 	"gambler/backend/middleware"
 	"gambler/backend/tools"
 	"strings"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
@@ -27,8 +26,8 @@ type (
 	}
 
 	LoginRes struct {
-		Token *middleware.Jwt `json:"token"`
-		User  *models.User    `json:"user"`
+		User *models.User  `json:"user"`
+		Bets *[]models.Bet `json:"bets"`
 	}
 )
 
@@ -43,65 +42,44 @@ func Login(c *fiber.Ctx) error {
 		return tools.ReturnData(c, 400, errs, -1)
 	}
 
-	accessToken := tools.HeaderParser(c)
-	if accessToken == "" {
-		user, err := handlers.DB.GetUserByUsername(req.Username)
-		if err != -1 {
-			if err == tools.DB_REC_NOTFOUND {
-				return tools.ReturnData(c, 404, nil, tools.DB_REC_NOTFOUND)
-			} else {
-				return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
-					Success: false,
-					Message: "Internal server error",
-					Code:    500,
-				})
-			}
-		}
-		hashedPassword := user.Password
-		valid := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(tools.HASH_SECRET+":"+req.Password))
-		if valid != nil {
-			fmt.Println(valid)
-			return tools.ReturnData(c, 401, strings.Split(valid.Error(), ": ")[1], -1)
-		}
-		tokens, err := middleware.Sign(user.ID)
-		if err != -1 {
-			return tools.ReturnData(c, 500, nil, err)
-		}
-
-		tools.AddCacheTime(c, time.Hour*6)
-		return tools.ReturnData(c, 200, LoginRes{
-			Token: tokens,
-			User:  user,
-		}, -1)
-	}
-	return handleLoginJWT(accessToken, c)
-}
-
-func handleLoginJWT(accessToken string, c *fiber.Ctx) error {
-	claims, err := middleware.Decode(accessToken, false)
+	user, err := handlers.DB.GetUserByUsername(req.Username)
 	if err != -1 {
-		return tools.ReturnData(c, 401, nil, err)
+		if err == tools.DB_REC_NOTFOUND {
+			return tools.ReturnData(c, 404, nil, tools.DB_REC_NOTFOUND)
+		} else {
+			return c.Status(500).JSON(tools.GlobalErrorHandlerResp{
+				Success: false,
+				Message: "Internal server error",
+				Code:    500,
+			})
+		}
 	}
-	userId, jwtErr := claims.GetSubject()
-	if jwtErr != nil {
-		return tools.ReturnData(c, 500, nil, tools.JWT_INVALID)
+	hashedPassword := user.Password
+	valid := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(tools.HASH_SECRET+":"+req.Password))
+	if valid != nil {
+		fmt.Println(valid)
+		return tools.ReturnData(c, 401, strings.Split(valid.Error(), ": ")[1], -1)
 	}
-	user, err := handlers.DB.GetUserByID(tools.ParseUInt(userId))
+	tokens, err := middleware.Sign(user.ID)
 	if err != -1 {
 		return tools.ReturnData(c, 500, nil, err)
 	}
 
+	bets := &[]models.Bet{}
+	bets, err = handlers.Cache.GetAllBet()
+	if err != -1 {
+		return tools.ReturnData(c, 500, nil, err)
+	}
+
+	tools.CreateCookie(c, tokens.AccessToken, tokens.RefreshToken, user.ID)
 	return tools.ReturnData(c, 200, LoginRes{
-		Token: nil,
-		User:  user,
+		User: user,
+		Bets: bets,
 	}, -1)
 }
 
 func RefreshToken(c *fiber.Ctx) error {
-	header := tools.HeaderParser(c)
-	if header == "" {
-		return tools.ReturnData(c, 401, nil, tools.JWT_INVALID)
-	}
+	header := c.Cookies("refresh_token")
 
 	claims, err := middleware.Decode(header, true)
 	if err != -1 {
@@ -152,14 +130,15 @@ func Register(c *fiber.Ctx) error {
 		return tools.ReturnData(c, 500, nil, dbErr)
 	}
 
-	tokens, jwtErr := middleware.Sign(user.ID)
-	if jwtErr != -1 {
-		return tools.ReturnData(c, 500, nil, jwtErr)
+	bets := &[]models.Bet{}
+	bets, dbErr = handlers.Cache.GetAllBet()
+	if dbErr != -1 {
+		return tools.ReturnData(c, 500, nil, dbErr)
 	}
 
 	return tools.ReturnData(c, 200, LoginRes{
-		Token: tokens,
-		User:  &user,
+		User: &user,
+		Bets: bets,
 	}, -1)
 }
 

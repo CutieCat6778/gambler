@@ -8,6 +8,6 @@ import (
 )
 
 func InitRootRoute(c *fiber.App) {
-	group := c.Group("/s", middleware.JwtGuardMasterHandler)
+	group := c.Group("/s", middleware.JwtGuardHandler)
 	group.Put("/user/balance", service.AddBalanceToUser)
 }

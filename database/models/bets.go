@@ -13,10 +13,10 @@ type Bet struct {
 	Name        string                `json:"name" gorm:"unique"`
 	Description string                `json:"description"`
 	UserBets    []UserBet             `json:"user_bets" gorm:"foreignKey:BetID"`
-	BetOptions  pq.StringArray        `json:"betOptions" gorm:"type:text[]"`
+	BetOptions  pq.StringArray        `json:"bet_options" gorm:"type:text[]"`
 	Status      customTypes.BetStatus `json:"status"`
-	EndsAt      time.Time             `json:"endsAt"`
-	Author      uint                  `json:"author"`
+	EndsAt      time.Time             `json:"ends_at"`
+	Author      uint                  `json:"author,string"`
 }
 
 func (b Bet) MarshalBinary() ([]byte, error) {

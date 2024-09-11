@@ -109,113 +109,15 @@ func JwtGuardHandler(c *fiber.Ctx) error {
 	log.Info("Connected")
 	// Check if the request is authorized
 	// If not, return an error
-	token := tools.HeaderParser(c)
-	if token == "" {
-		log.Info("Unauthorized, no authorization protocol used")
-		return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "Unauthorized, no authorization protocol used",
-			Code:    400,
-		})
-	}
+	token := c.Cookies("access_token")
+	log.Info("Token", token)
 	claims, err := Decode(token, false)
 	if err != -1 {
 		log.Info("Failed to decode token ", err)
-		if err == tools.JWT_FAILED_TO_DECODE {
-			log.Info(token)
-			return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Failed to decode token",
-				Code:    400,
-			})
-		} else if err == tools.JWT_INVALID {
-			return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Invalid token",
-				Code:    401,
-			})
-		} else if err == tools.JWT_EXPIRED {
-			return c.Status(408).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Token expired",
-				Code:    408,
-			})
-		} else {
-			return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Unknown error",
-				Code:    401,
-			})
-		}
+		return tools.ReturnData(c, 401, nil, err)
 	}
 
 	log.Info(claims)
-
-	c.Locals("claims", claims)
-	c.Locals("isAuthorized", true)
-
-	return c.Next()
-}
-
-func JwtGuardMasterHandler(c *fiber.Ctx) error {
-	log.Info("Connected")
-	// Check if the request is authorized
-	// If not, return an error
-	token := tools.HeaderParser(c)
-	if token == "" {
-		log.Info("Unauthorized, no authorization protocol used")
-		return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "Unauthorized, no authorization protocol used",
-			Code:    400,
-		})
-	}
-	claims, err := Decode(token, false)
-	if err != -1 {
-		log.Info("Failed to decode token")
-		if err == tools.JWT_FAILED_TO_DECODE {
-			return c.Status(400).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Failed to decode token",
-				Code:    400,
-			})
-		} else if err == tools.JWT_INVALID {
-			return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Invalid token",
-				Code:    401,
-			})
-		} else if err == tools.JWT_EXPIRED {
-			return c.Status(408).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Token expired",
-				Code:    408,
-			})
-		} else {
-			return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
-				Success: false,
-				Message: "Unknown error",
-				Code:    401,
-			})
-		}
-	}
-
-	userId, jwtErr := claims.GetSubject()
-	if jwtErr != nil {
-		return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "Failed to get user id",
-			Code:    401,
-		})
-	}
-
-	if !strings.Contains(tools.MASTER_IDS, userId) {
-		return c.Status(401).JSON(tools.GlobalErrorHandlerResp{
-			Success: false,
-			Message: "Unauthorized, not a master",
-			Code:    401,
-		})
-	}
 
 	c.Locals("claims", claims)
 	c.Locals("isAuthorized", true)

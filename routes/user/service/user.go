@@ -41,7 +41,7 @@ func GetSelf(c *fiber.Ctx) error {
 		return tools.ReturnData(c, 401, nil, -1)
 	}
 	log.Info(userId)
-	user, err := handlers.DB.GetUserBetByID(tools.ParseUInt(userId))
+	user, err := handlers.DB.GetUserByID(tools.ParseUInt(userId))
 	if err != -1 {
 		return tools.ReturnData(c, 500, nil, err)
 	}
