@@ -86,17 +86,33 @@ func RefreshToken(c *fiber.Ctx) error {
 		return tools.ReturnData(c, 401, nil, err)
 	}
 
-	userId, jwtErr := claims.GetSubject()
+	rawUserId, jwtErr := claims.GetSubject()
 	if jwtErr != nil {
 		return tools.ReturnData(c, 401, nil, tools.JWT_INVALID)
 	}
 
-	tokens, err := middleware.Sign(tools.ParseUInt(userId))
+	userId := tools.ParseUInt(rawUserId)
+
+	tokens, err := middleware.Sign(userId)
+	if err != -1 {
+		return tools.ReturnData(c, 500, nil, err)
+	}
+	tools.CreateCookie(c, tokens.AccessToken, tokens.RefreshToken, userId)
+
+	user, err := handlers.DB.GetUserByID(userId)
 	if err != -1 {
 		return tools.ReturnData(c, 500, nil, err)
 	}
 
-	return tools.ReturnData(c, 200, tokens, -1)
+	bets, err := handlers.Cache.GetAllBet()
+	if err != -1 {
+		return tools.ReturnData(c, 500, nil, err)
+	}
+
+	return tools.ReturnData(c, 200, fiber.Map{
+		"user": user,
+		"bets": bets,
+	}, -1)
 }
 
 func Register(c *fiber.Ctx) error {

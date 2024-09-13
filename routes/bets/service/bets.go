@@ -19,7 +19,7 @@ type (
 	CreateBetReq struct {
 		Name        string   `json:"name" validate:"required,min=3,max=50,ascii"`
 		Description string   `json:"description" validate:"required,min=3,max=50,ascii"`
-		BetOptions  []string `json:"betOptions" validate:"required,min=2,dive,min=3,max=50,ascii"`
+		BetOptions  []string `json:"betOptions" validate:"required,dive,min=2,max=50,ascii"`
 		InputBet    float64  `json:"inputBet" validate:"required,min=1"`
 		InputOption string   `json:"inputOption" validate:"required"`
 		EndsAt      string   `json:"endsAt" validate:"required"`

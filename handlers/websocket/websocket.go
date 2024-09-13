@@ -83,7 +83,7 @@ func (wsh *WebSocketHandler) HandleWebSocketConnection(c *websocket.Conn) {
 				wsh.SendErrorMessage(uuid, tools.WS_INVALID_CONN, "Error reading WebSocket message")
 				break
 			}
-			wsh.SendMessageToAll([]byte{tools.BET_UPDATE, tools.WEBSOCKET_VERSION, byte(255)})
+			wsh.SendMessageToAll([]byte{tools.BET_UPDATE, tools.WEBSOCKET_VERSION, byte(0)})
 			log.Info(fmt.Sprintf("Received message from user %s: %v", uuid, msg))
 			HandleMessageEvent(wsh, uuid, int(msg[0]), msg[2:])
 		}
@@ -117,7 +117,18 @@ func (wsh *WebSocketHandler) SendMessageToAll(message []byte) int {
 }
 
 func (wsh *WebSocketHandler) UpdateBet(betID uint) int {
-	err := wsh.SendMessageToAll([]byte{tools.BET_UPDATE, tools.WEBSOCKET_VERSION, byte(betID)})
+	result := []byte{tools.BET_UPDATE, tools.WEBSOCKET_VERSION}
+	betIdChunks := tools.ChunkBigNumber(int(betID))
+	result = append(result, betIdChunks...)
+	err := wsh.SendMessageToAll(result)
+	if err != -1 {
+		return err
+	}
+	return -1
+}
+
+func (wsh *WebSocketHandler) UpdateUser(uuid string) int {
+	err := wsh.SendMessageToUser(uuid, []byte{tools.USER_UPDATE, tools.WEBSOCKET_VERSION})
 	if err != -1 {
 		return err
 	}

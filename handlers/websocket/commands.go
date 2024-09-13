@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"gambler/backend/calculator"
-	"gambler/backend/database/models"
-	"gambler/backend/database/models/customTypes"
 	"gambler/backend/handlers"
 	"gambler/backend/tools"
 	"math"
@@ -16,26 +14,21 @@ import (
 func HandleMessageEvent(wsh *WebSocketHandler, uuid string, event int, data []byte) {
 	var res []byte
 	var err int
-	var global = false
+	var resp = false
 	log.Info("Handling message event:", event, uuid)
 	switch event {
-	case tools.BET_ACTION_BET:
-		// Handle bet event
-		res, err = betActionBetEventHandler(wsh, data, uuid)
-		global = true
-	case tools.BET_ACTION_CANCEL:
-		// Handle cancel bet event
-		res, err = betActionCancelEventHandler(wsh, data, uuid)
-		global = true
 	case tools.BET_INFO:
 		// Handle bet info event
 		res, err = betInfoEventHandler(data, uuid)
+		resp = true
 	case tools.PING:
 		// Handle ping event
 		res = []byte{tools.PONG, tools.WEBSOCKET_VERSION}
 		err = -1
+		resp = true
 	default:
 		res, err = nil, tools.WS_COMMAND_NOTFOUND
+		resp = true
 	}
 
 	if err != -1 {
@@ -43,122 +36,13 @@ func HandleMessageEvent(wsh *WebSocketHandler, uuid string, event int, data []by
 	}
 
 	var wsErr int
-	if global {
-		wsErr = wsh.SendMessageToAll(res)
-	} else {
+	if resp {
 		wsErr = wsh.SendMessageToUser(uuid, res)
 	}
 	log.Info(fmt.Sprintf("%v", res))
 	if wsErr != -1 {
 		wsh.SendErrorMessage(uuid, wsErr, tools.GetErrorString(wsErr))
 	}
-}
-
-func betActionBetEventHandler(wsh *WebSocketHandler, data []byte, uuid string) ([]byte, int) {
-	betID := uint(data[0])
-	input := int(data[1])
-	amountInt := int(data[2])
-	amountFrac := int(data[3])
-	amount := combineToFloat64(amountInt, amountFrac)
-
-	user, err := handlers.DB.GetUserByID(tools.ParseUInt(uuid))
-	if err != -1 {
-		return []byte{}, err
-	}
-
-	if user.Balance < amount {
-		return []byte{}, tools.BET_INSUFFICIENT_BALANCE
-	}
-
-	bet, err := handlers.Cache.GetBetById(betID)
-	if err != -1 {
-		return []byte{}, err
-	}
-
-	log.Info(fmt.Sprintf("Bet: %d", len(bet.UserBets)))
-
-	if input >= len(bet.BetOptions) || input < 0 {
-		return []byte{}, tools.BET_OPTION_NOT_FOUND
-	}
-
-	option := bet.BetOptions[input]
-
-	if bet.Status != customTypes.Open {
-		return []byte{}, tools.BET_NOT_ACTIVE
-	}
-
-	userBet := models.UserBet{
-		UserID:    user.ID,
-		BetID:     bet.ID,
-		Amount:    amount,
-		BetOption: option,
-	}
-
-	err = handlers.DB.PlaceBet(userBet)
-	if err != -1 {
-		return []byte{}, err
-	}
-
-	// Update user balance
-	err = handlers.DB.UpdateUserBalance(-amount, *user, fmt.Sprintf("Bet on: %s", bet.Name))
-	if err != -1 {
-		return []byte{}, err
-	}
-
-	err = handlers.Cache.UpdateBet(bet.ID)
-	if err != -1 {
-		return []byte{}, err
-	}
-
-	betUpdateEventHandler(wsh, bet.ID)
-
-	return []byte{tools.BET_UPDATE, tools.WEBSOCKET_VERSION, byte(bet.ID)}, -1
-}
-
-func betActionCancelEventHandler(wsh *WebSocketHandler, data []byte, uuid string) ([]byte, int) {
-	betID := uint(data[0])
-	userBetID := uint(data[1])
-
-	user, err := handlers.DB.GetUserByID(tools.ParseUInt(uuid))
-	if err != -1 {
-		return []byte{}, err
-	}
-
-	bet, err := handlers.Cache.GetBetById(betID)
-	if err != -1 {
-		return []byte{}, err
-	}
-
-	log.Info(fmt.Sprintf("Bet: %d", len(bet.UserBets)))
-
-	if bet.Status != customTypes.Open {
-		return []byte{}, tools.BET_NOT_ACTIVE
-	}
-
-	userBet, err := handlers.DB.GetUserBetByID(userBetID)
-	if err != -1 {
-		return []byte{}, err
-	}
-
-	err = handlers.DB.CancelBet(*userBet, *user)
-	if err != -1 {
-		return []byte{}, err
-	}
-
-	// Update user balance
-	err = handlers.DB.UpdateUserBalance(userBet.Amount, *user, fmt.Sprintf("Cancel bet on: %s", bet.Name))
-	if err != -1 {
-		return []byte{}, err
-	}
-
-	err = handlers.Cache.UpdateBet(bet.ID)
-	if err != -1 {
-		return []byte{}, err
-	}
-
-	betUpdateEventHandler(wsh, bet.ID)
-
-	return []byte{tools.BET_UPDATE, tools.WEBSOCKET_VERSION, byte(bet.ID)}, -1
 }
 
 func betInfoEventHandler(data []byte, uuid string) ([]byte, int) {
@@ -187,23 +71,15 @@ func betInfoEventHandler(data []byte, uuid string) ([]byte, int) {
 
 	intPart, fracPart := math.Modf(winAmount)
 
-	return []byte{tools.BET_INFO_RES, tools.WEBSOCKET_VERSION, betID, byte(intPart), byte(int(fracPart * 100))}, -1
-}
+	betIDChunks := tools.ChunkBigNumber(int(betID))
+	intPartChunks := tools.ChunkBigNumber(int(intPart))
+	fracPartChunks := tools.ChunkBigNumber(int(fracPart * 100))
 
-func betUpdateEventHandler(wsh *WebSocketHandler, betID uint) int {
-	bet, err := handlers.DB.GetBetByID(betID)
-	if err != -1 {
-		return err
-	}
-	log.Info(fmt.Sprintf("Bet: %d", len(bet.UserBets)))
-	marshal, jsonErr := json.Marshal(bet)
-	if jsonErr != nil {
-		return tools.JSON_MARSHAL_ERROR
-	}
-	// Send bet update to all users
-	result := []byte{tools.BET_UPDATE, tools.WEBSOCKET_VERSION, byte(bet.ID)}
-	result = append(result, marshal...)
-	return wsh.SendMessageToAll(result)
+	result := []byte{tools.BET_INFO_RES, tools.WEBSOCKET_VERSION, byte(len(betIDChunks)), byte(len(intPartChunks)), byte(len(fracPartChunks))}
+	result = append(result, betIDChunks...)
+	result = append(result, intPartChunks...)
+	result = append(result, fracPartChunks...)
+	return result, -1
 }
 
 func combineToFloat64(before, after int) float64 {

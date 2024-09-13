@@ -111,6 +111,13 @@ func JwtGuardHandler(c *fiber.Ctx) error {
 	// If not, return an error
 	token := c.Cookies("access_token")
 	log.Info("Token", token)
+	if token == "" {
+		refresh_token := c.Cookies("refresh_token")
+		if refresh_token == "" {
+			return tools.ReturnData(c, 401, nil, tools.JWT_NO_KEY)
+		}
+		return c.Redirect("/auth/refresh", 307)
+	}
 	claims, err := Decode(token, false)
 	if err != -1 {
 		log.Info("Failed to decode token ", err)
