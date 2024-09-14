@@ -53,7 +53,10 @@ func (wsh *WebSocketHandler) SendErrorMessage(uuid string, code int, errMessage 
 	msgAsByte := []byte(msg)
 	headers := []byte{tools.WS_ERR, tools.WEBSOCKET_VERSION}
 	headers = append(headers, msgAsByte...)
-	wsh.SendMessageToUser(uuid, headers)
+	err := wsh.SendMessageToUser(uuid, headers)
+	if err != -1 {
+		log.Error(tools.GetErrorString(err))
+	}
 }
 
 // HandleWebSocketConnection manages the WebSocket connection for a specific user
