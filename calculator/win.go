@@ -8,7 +8,6 @@ import (
 	"math"
 
 	"github.com/gofiber/fiber/v2/log"
-	logger "github.com/gofiber/fiber/v2/log"
 )
 
 type (
@@ -18,7 +17,7 @@ type (
 	}
 )
 
-func CalculateWinningAmount(betID uint, userID uint, inputIndex int, betLog []BetLog) (float64, int) {
+func CalculateWinningAmount(betID uint, userID uint, inputIndex int, userBetted float64) (float64, int) {
 	bet, err := handlers.Cache.GetBetById(betID)
 	if err != -1 {
 		return 0, err
@@ -31,17 +30,9 @@ func CalculateWinningAmount(betID uint, userID uint, inputIndex int, betLog []Be
 	}
 	input := bet.BetOptions[inputIndex]
 
-	amount := 0.0   // Total bet amount
-	sumBet := 0.0   // My total bet in that option
-	otherWin := 0.0 // Other bets in that option
-	for _, log := range betLog {
-		logger.Info(fmt.Sprintf("%v", log))
-		if log.BetOption == input {
-			sumBet += log.BetAmount
-		} else if log.BetOption != input {
-			amount += log.BetAmount
-		}
-	}
+	amount := userBetted // Total bet amount
+	sumBet := userBetted // My total bet in that option
+	otherWin := 0.0      // Other bets in that option
 
 	for _, bet := range bet.UserBets {
 		amount += bet.Amount
@@ -58,14 +49,14 @@ func CalculateWinningAmount(betID uint, userID uint, inputIndex int, betLog []Be
 
 	log.Info(fmt.Sprintf("Amount: %v, SumBet: %v, OtherWin: %v", amount, sumBet, otherWin))
 
-	var winAmount float64
+	var winAmount float64 // Total amount will win
 	if otherWin == 0.0 {
-		winAmount = amount
+		winAmount = amount - sumBet // If no one bet on that option
 	} else {
-		winAmount = amount * (sumBet / otherWin)
+		winAmount = amount * (sumBet / otherWin) // Total amount beted / ()
 	}
 
-	winPercentage := math.Trunc(winAmount/sumBet*100) / 100
+	winPercentage := math.Trunc((winAmount+sumBet)/sumBet*100) / 100
 
 	fmt.Println("Winning percentage: ", winPercentage, winAmount, amount, otherWin, sumBet)
 

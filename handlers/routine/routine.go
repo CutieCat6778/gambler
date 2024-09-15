@@ -55,3 +55,31 @@ func HandleExpiredKey(key string) {
 		websocket.WebSocket.UpdateBet(betID)
 	}
 }
+
+func updateBetStatusOnInit() int {
+	bets, err := handlers.DB.GetAllBetsByStatus(customTypes.Open)
+	if err != -1 {
+		log.Error("Failed to get open bets:", err)
+		tools.SendWebHook(fmt.Sprintf("Error when find all bets: %s", tools.GetErrorString(err)))
+		return err
+	}
+
+	for _, bet := range *bets {
+		_, err = handlers.DB.UpdateBetStatus(bet.ID, customTypes.Pending)
+		if err != -1 {
+			log.Error("Failed to update bet status:", err)
+			tools.SendWebHook(fmt.Sprintf("Failed to update bet status: %d", bet.ID))
+			return err
+		}
+		log.Info("Updated bet status to Pending:", bet.ID)
+		err = handlers.Cache.UpdateBet(bet.ID)
+		if err != -1 {
+			log.Error("Failed to update bet in cache:", err)
+			tools.SendWebHook(fmt.Sprintf("Failed to update bet in cache: %d", bet.ID))
+			return err
+		}
+		log.Info("Updated bet in cache:", bet.ID)
+		websocket.WebSocket.UpdateBet(bet.ID)
+	}
+	return -1
+}

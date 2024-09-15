@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"gambler/backend/database/models"
 	"gambler/backend/database/models/customTypes"
 	"gambler/backend/handlers"
@@ -24,7 +25,81 @@ type (
 		InputOption string   `json:"inputOption" validate:"required"`
 		EndsAt      string   `json:"endsAt" validate:"required"`
 	}
+	PlaceBetReq struct {
+		Amount float64 `json:"amount" validate:"required,min=1"`
+		Option string  `json:"option" validate:"required"`
+	}
 )
+
+func PlaceBet(c *fiber.Ctx) error {
+
+	req := new(PlaceBetReq)
+
+	if err := c.BodyParser(req); err != nil {
+		return tools.ReturnData(c, 400, nil, -1)
+	}
+
+	if errs := handlers.VHandler.Validate(req); len(errs) > 0 && errs[0].Error {
+		return tools.ReturnData(c, 400, errs, -1)
+	}
+
+	claims := c.Locals("claims").(jwt.MapClaims)
+	userID, jwtErr := claims.GetSubject()
+	if jwtErr != nil {
+		return tools.ReturnData(c, 400, nil, -1)
+	}
+
+	betID := c.Params("id")
+	bet, err := handlers.Cache.GetBetById(tools.ParseUInt(betID))
+	if err != -1 {
+		return tools.ReturnData(c, 500, nil, err)
+	}
+
+	user, err := handlers.DB.GetUserByID(tools.ParseUInt(userID))
+	if err != -1 {
+		return tools.ReturnData(c, 500, nil, err)
+	}
+
+	if bet.EndsAt.Before(time.Now()) {
+		return tools.ReturnData(c, 400, nil, tools.BET_NOT_ACTIVE)
+	}
+	if bet.Status != customTypes.Open {
+		return tools.ReturnData(c, 400, nil, tools.BET_NOT_ACTIVE)
+	}
+	if tools.Contains(bet.BetOptions, req.Option) == false {
+		log.Info(bet.BetOptions, req.Option)
+		return tools.ReturnData(c, 400, nil, tools.BET_OPTION_NOT_FOUND)
+	}
+
+	userBet := models.UserBet{
+		UserID:    user.ID,
+		BetID:     bet.ID,
+		Amount:    req.Amount,
+		BetOption: req.Option,
+	}
+
+	err = handlers.DB.PlaceBet(userBet)
+	if err != -1 {
+		return tools.ReturnData(c, 500, nil, err)
+	}
+
+	err = handlers.Cache.UpdateBet(bet.ID)
+	if err != -1 {
+		return tools.ReturnData(c, 500, nil, err)
+	}
+
+	err = handlers.DB.UpdateUserBalance(-req.Amount, *user, fmt.Sprintf("Placed bet on %s", bet.Name))
+	if err != -1 {
+		return tools.ReturnData(c, 500, nil, err)
+	}
+
+	err = websocket.WebSocket.UpdateBet(bet.ID)
+	if err != -1 {
+		log.Info("Failed to update bet in websocket")
+	}
+
+	return tools.ReturnData(c, 200, true, -1)
+}
 
 func GetAllBetsHandler(c *fiber.Ctx) error {
 	query := c.QueryInt("type", 0)

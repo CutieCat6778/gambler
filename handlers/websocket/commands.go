@@ -1,7 +1,6 @@
 package websocket
 
 import (
-	"encoding/json"
 	"fmt"
 	"gambler/backend/calculator"
 	"gambler/backend/handlers"
@@ -46,15 +45,9 @@ func HandleMessageEvent(wsh *WebSocketHandler, uuid string, event int, data []by
 }
 
 func betInfoEventHandler(data []byte, uuid string) ([]byte, int) {
-	var betLog []calculator.BetLog
 	betID := data[0]
 	input := int(data[1])
-	log.Info(int(betID))
-	jsonErr := json.Unmarshal(data[2:], &betLog)
-	if jsonErr != nil {
-		log.Info(jsonErr)
-		return []byte{}, tools.JSON_UNMARSHAL_ERROR
-	}
+	amount := combineToFloat64(int(data[2]), int(data[3]))
 
 	log.Info(betID, input)
 	user, err := handlers.DB.GetUserByID(tools.ParseUInt(uuid))
@@ -63,7 +56,7 @@ func betInfoEventHandler(data []byte, uuid string) ([]byte, int) {
 	}
 
 	// Calculate winning amount
-	winAmount, err := calculator.CalculateWinningAmount(uint(betID), user.ID, input, betLog)
+	winAmount, err := calculator.CalculateWinningAmount(uint(betID), user.ID, input, amount)
 	if err != -1 {
 		log.Info(err, tools.GetErrorString(err))
 		return []byte{}, err
@@ -71,6 +64,7 @@ func betInfoEventHandler(data []byte, uuid string) ([]byte, int) {
 
 	intPart, fracPart := math.Modf(winAmount)
 
+	log.Info(betID, intPart, fracPart)
 	betIDChunks := tools.ChunkBigNumber(int(betID))
 	intPartChunks := tools.ChunkBigNumber(int(intPart))
 	fracPartChunks := tools.ChunkBigNumber(int(fracPart * 100))

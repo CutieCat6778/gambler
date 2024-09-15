@@ -249,6 +249,15 @@ func (h DBHandler) FindBet(betID int) (*models.Bet, int) {
 	return &bet, -1
 }
 
+func (h DBHandler) GetAllBetsByStatus(s customTypes.BetStatus) (*[]models.Bet, int) {
+	var bets []models.Bet
+	res := h.DB.Where("status = ?", s).Find(&bets)
+	if res.Error != nil {
+		return nil, dbHandleError(res.Error)
+	}
+	return &bets, -1
+}
+
 func (h DBHandler) UpdateBet(bet models.Bet) int {
 	res := h.DB.Save(&bet)
 	if res.Error != nil {

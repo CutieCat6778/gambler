@@ -78,19 +78,19 @@ func (wsh *WebSocketHandler) HandleWebSocketConnection(c *websocket.Conn) {
 	wsh.SendMessageToUser(uuid, []byte{0, tools.WEBSOCKET_VERSION, 0})
 
 	// Main loop to handle incoming WebSocket messages
-	go func() {
-		for {
-			_, msg, err := c.ReadMessage()
-			if err != nil {
-				log.Info(err)
-				wsh.SendErrorMessage(uuid, tools.WS_INVALID_CONN, "Error reading WebSocket message")
-				break
-			}
-			wsh.SendMessageToAll([]byte{tools.BET_UPDATE, tools.WEBSOCKET_VERSION, byte(0)})
-			log.Info(fmt.Sprintf("Received message from user %s: %v", uuid, msg))
-			HandleMessageEvent(wsh, uuid, int(msg[0]), msg[2:])
+	// go func() {
+	for {
+		msgType, msg, err := c.ReadMessage()
+		if err != nil {
+			log.Info("Message type ", msgType, msg)
+			log.Info(err.Error())
+			wsh.SendErrorMessage(uuid, tools.WS_INVALID_CONN, "Error reading WebSocket message")
+			break
 		}
-	}()
+		log.Info(fmt.Sprintf("Received message from user %s: %v", uuid, msg))
+		HandleMessageEvent(wsh, uuid, int(msg[0]), msg[2:])
+	}
+	// }()
 }
 
 // SendMessageToUser sends a message to a specific user based on their UUID

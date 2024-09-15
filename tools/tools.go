@@ -112,9 +112,14 @@ func ConfigureApp(app *fiber.App) {
 	app.Use(healthcheck.New())
 
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:4200",
-		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
+		AllowOrigins:     "http://localhost:4200, http://192.168.178.2",
+		AllowHeaders:     "Origin, Content-Type, Accept",
+		AllowMethods:     "GET, POST, PUT, DELETE, OPTIONS",
 		AllowCredentials: true,
+		AllowOriginsFunc: func(origin string) bool {
+			log.Info(origin)
+			return true
+		},
 	}))
 
 	app.Use(limiter.New(limiter.Config{
@@ -240,7 +245,7 @@ func ReturnData(c *fiber.Ctx, code int, body interface{}, err int) error {
 			Code:    err,
 			Body:    body,
 		})
-	} else if code < 300 {
+	} else if code >= 400 {
 		return c.Status(code).JSON(GlobalErrorHandlerResp{
 			Success: false,
 			Message: StatusText(code),
@@ -286,4 +291,17 @@ func StatusText(code int) string {
 	default:
 		return "Unknown Status Code"
 	}
+}
+
+func Contains(slice []string, item string) bool {
+	var res bool = false
+	for _, str := range slice {
+		log.Info(str, item)
+		if str == item {
+			log.Info("Found")
+			res = true
+			break
+		}
+	}
+	return res
 }
